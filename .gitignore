@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tgz
+playground/skeleton-theme/node_modules/
+playground/skeleton-theme/assets/*-????????.css
+playground/skeleton-theme/assets/*-????????.js
+playground/skeleton-theme/assets/vite-manifest.json
+playground/skeleton-theme/.vite-shopify-theme.json

@@ -1,0 +1,17 @@
+{
+  "name": "vite-plugin-shopify-theme-playground",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "node scripts/dev.mjs",
+    "vite": "vite"
+  },
+  "devDependencies": {
+    "@shopify/cli": "^3.88.1",
+    "@tailwindcss/vite": "4.3.3",
+    "tailwindcss": "4.3.3",
+    "vite": "^8.3.1",
+    "vite-plugin-shopify-theme": "file:../.."
+  }
+}
