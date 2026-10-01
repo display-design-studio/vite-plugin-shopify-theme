@@ -2,6 +2,20 @@
 
 A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries into a Shopify theme's `assets` directory and generates a Liquid snippet for production and development.
 
+## Requirements and installation
+
+- Node.js `>=20.19.0`.
+- Vite `^8.0.0` in the consuming project.
+- A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI is useful for local theme previews, but is not a plugin dependency.
+
+Install Vite and the plugin as development dependencies:
+
+```sh
+npm install --save-dev vite vite-plugin-shopify-theme
+```
+
+Create `vite.config.ts` in the theme root. Every frontend entry is explicit: the key is the name passed from Liquid and the value is its source path relative to the theme root.
+
 ```ts
 import { defineConfig } from 'vite';
 import { shopifyTheme } from 'vite-plugin-shopify-theme';
@@ -19,7 +33,7 @@ export default defineConfig({
 });
 ```
 
-Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts where appropriate:
+Render the snippet without an entry once in `<head>` to install the Vite client during development. Render CSS entries in `<head>` and JavaScript entries where the theme should load them:
 
 ```liquid
 {% render 'vite-tag' %}
@@ -27,15 +41,150 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 {% render 'vite-tag', entry: 'theme.ts' %}
 ```
 
-`entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. The plugin owns Vite's input (including the Vite 8.0 build-input compatibility path), disables `publicDir`, uses a relative base, emits flat Shopify-compatible assets, retains manually-authored assets, and deletes only obsolete files recorded by the plugin's preceding successful build.
+The entryless render emits nothing in production, so it is safe to leave it in the layout.
+
+## Configuration
+
+| Option | Type | Default | Contract and behavior |
+| --- | --- | --- | --- |
+| `entries` | `Record<string, string>` | Required | A non-empty map of Liquid entry names to source files. Names must be non-empty, flat, and unique; sources must be distinct existing files inside `themeRoot`. This map is authoritative and is not supplemented by entry discovery. |
+| `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
+| `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid file, resolved relative to and required to remain inside `themeRoot`. Render the corresponding snippet name from Liquid. The file is generated on build and temporarily replaced during development. |
+| `devOrigin` | `string` | The listening Vite server origin | Public origin used in development tags. It must be an absolute HTTPS origin with no credentials, path, query, or hash. Use it for a separately managed tunnel; the plugin configures Vite for that origin but does not start the tunnel. |
+
+`entries` is authoritative. Entry keys do not need to match source filenames, but they are the exact values supplied as the snippet's `entry` argument. A stylesheet is recognized from its source extension, not its entry key.
+
+### Vite configuration owned by the plugin
+
+The plugin intentionally controls the settings that make the generated Liquid and Shopify assets deterministic:
+
+| Vite setting | Plugin value | Reason |
+| --- | --- | --- |
+| `root` | `themeRoot` | Keeps source URLs and generated paths relative to the Shopify theme. |
+| `appType` | `custom` | Runs Vite without an HTML entrypoint. |
+| `input` and `build.rolldownOptions.input` | The explicit entry map | Prevents Vite or another plugin from changing the manifest contract. Both paths are populated for Vite 8.0 compatibility. |
+| `build.outDir` | `<themeRoot>/assets` | Writes build output directly into Shopify's asset directory. |
+| `build.manifest` | `vite-manifest.json` | Gives the Liquid generator a stable manifest location. |
+| `publicDir` | `false` | Prevents implicit copying of files into the theme assets. |
+| `base` | `./` | Produces relative references suitable for Shopify-hosted assets. |
+| `build.emptyOutDir` | `false` | Preserves manually authored and otherwise unowned theme assets. |
+
+User values that conflict with these settings are rejected with the exact option name and the required value. In particular, do not configure `input`, `build.rolldownOptions.input`, `build.outDir`, or `build.manifest`; do not enable `publicDir` or `build.emptyOutDir`; and do not set a non-relative `base` or an `appType` other than `custom`. Other Vite options remain available, including `build.modulePreload` and `build.cssCodeSplit`.
+
+## Common workflows
+
+### Production build
+
+Add a conventional script and build the theme:
+
+```json
+{
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  }
+}
+```
+
+```sh
+npm run build
+```
+
+Vite writes flat, hashed JavaScript, CSS, and chunk files plus `assets/vite-manifest.json`. The plugin generates the configured production snippet and records generated bundle files in `.vite-shopify-theme.json`. On the next successful build it removes only obsolete flat asset files listed by that preceding state; manual assets are never inferred or broadly cleaned.
+
+Production snippets follow Vite's `build.modulePreload` setting. Shared imported JavaScript is emitted as module preloads unless `build.modulePreload` is `false`, and styles discovered through the manifest are emitted before scripts.
+
+### Local development with Shopify CLI
+
+Run Vite and Shopify CLI in separate terminals so Shopify serves Liquid while Vite serves frontend modules and HMR:
+
+```sh
+npm run dev
+```
+
+```sh
+shopify theme dev
+```
+
+When Vite begins listening, the plugin temporarily replaces the configured snippet with tags for `@vite/client`, its theme-reload client, and each explicit entry. Changes to Liquid and JSON files inside the theme trigger a storefront reload. On normal shutdown, the prior snippet is restored (or the temporary file is removed if none existed).
+
+Build and development processes take exclusive ownership of a theme root. Run only one Vite build or server against a given theme at a time.
+
+### Theme Editor through an HTTPS tunnel
+
+The local storefront preview can load Vite directly over HTTP, but Shopify's HTTPS Theme Editor requires a reachable HTTPS origin for modules and WebSockets. Start a tunnel that forwards both HTTP and WebSocket traffic to Vite, then provide its public origin before Vite starts:
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:5173
+```
+
+```sh
+SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com npm run dev
+```
+
+Pass that variable to `devOrigin` as shown in the initial configuration. The plugin sets Vite's CORS origin, allowed host, and secure WebSocket client endpoint. It does not create, monitor, or restart the tunnel. Restart Vite whenever the public URL changes.
+
+### CSS and preprocessors
 
 Stylesheet entries may use Vite's supported `.css`, `.pcss`, `.postcss`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Vite handles `.pcss` and `.postcss` through its PostCSS pipeline; advanced PostCSS syntax requires the corresponding Vite/PostCSS configuration and plugins. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
 
-Production snippets follow Vite's `build.modulePreload` and `build.cssCodeSplit` settings. With `cssCodeSplit: false`, all CSS—including explicit stylesheet entries—is emitted as one shared asset and automatically included once in every entry branch; do not render a separate `style.css` entry.
+CSS entry names are ordinary Liquid-facing names when code splitting is enabled:
 
-During `vite` development the snippet points at the resolved local server and marks all development scripts and styles for anonymous CORS. Once the development snippet is active, the plugin writes one concise readiness message through Vite's logger; Vite's `logLevel` and custom logger settings continue to apply. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
+```ts
+shopifyTheme({
+  entries: {
+    'theme.css': 'frontend/entrypoints/theme.scss',
+    'theme.ts': 'frontend/entrypoints/theme.ts',
+  },
+})
+```
 
-Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
+### Disabling CSS code splitting
+
+With `build.cssCodeSplit: false`, all CSS, including explicit stylesheet entries, is emitted as one shared asset. The plugin automatically includes that asset once in every entry branch, so remove separate stylesheet renders such as `{% render 'vite-tag', entry: 'theme.css' %}` from the layout. The entry name `style.css` is reserved for the plugin's virtual aggregate in this mode and cannot name a non-stylesheet source.
+
+### Custom snippets and non-standard theme directories
+
+Point `themeRoot` at the Shopify theme and keep all entry sources and the generated snippet inside it:
+
+```ts
+shopifyTheme({
+  themeRoot: 'shopify/theme',
+  snippet: 'snippets/frontend-assets.liquid',
+  entries: {
+    storefront: 'frontend/storefront.ts',
+  },
+})
+```
+
+Then render the custom snippet name:
+
+```liquid
+{% render 'frontend-assets' %}
+{% render 'frontend-assets', entry: 'storefront' %}
+```
+
+Paths are resolved from Vite's configured root when one is supplied, otherwise from the process working directory. Avoid also setting Vite `root` when a direct `themeRoot` path is clearer.
+
+## Troubleshooting
+
+Plugin diagnostics begin with `[shopify-theme]` and identify the relevant option or filesystem path.
+
+| Problem | Likely cause | Remedy |
+| --- | --- | --- |
+| An entry is missing, is a directory, duplicates another source, or resolves outside the theme | `entries` contains an invalid or unsafe source path | Correct the reported mapping. Every source must be a distinct, readable file inside `themeRoot`. |
+| Startup reports a Vite option conflict | User config or another pre-plugin value overrides a plugin-owned setting | Remove the reported setting and let the plugin supply its required value. Check input, output, manifest, public directory, base, app type, and empty-output settings. |
+| A build or dev server reports an active ownership lock | Another live process already owns the same theme root | Stop that Vite build or server, then retry. Do not run concurrent plugin processes against one theme. |
+| A stale development lock is found after a crash | The recorded process no longer exists | Restart Vite. The plugin reclaims valid stale metadata and restores the old snippet only when the current temporary snippet still matches its recorded hash. |
+| Lock metadata is missing, corrupt, invalid, or cannot be verified | `.vite-shopify-theme.lock/owner.json` was damaged or edited | First confirm that no Vite process owns the theme. Only then remove the reported lock directory and retry. Uncertain locks deliberately fail closed. |
+| Ownership state is invalid | `.vite-shopify-theme.json` does not contain `{ "files": ["flat-name"] }` | Repair or remove the state file and retry. No recorded assets are deleted when validation fails. Removing it forfeits cleanup knowledge for the preceding build but does not delete assets. |
+| A generated file, lock, or stale asset cannot be written or removed | Theme directories or files are not writable by the current user | Correct filesystem ownership/permissions for the reported path, then retry. The plugin uses atomic writes and preserves the primary failure diagnostic. |
+| A temporary development snippet was edited manually | Its hash no longer matches the lock's generated hash | Stop Vite and preserve or reconcile the edited snippet manually. The plugin intentionally will not overwrite or restore over the edit. Restart development after the desired production snippet is in place. |
+| The manifest is missing, invalid, lacks an entry/import, or the aggregate CSS asset is absent | Build input/output was changed, the build was interrupted, or generated files are inconsistent | Stop competing processes, restore plugin-owned Vite settings, and run a clean build. Inspect the specifically reported manifest entry before deleting files. |
+| CSS or JavaScript is absent from the Shopify preview | The matching snippet render is missing, the entry key is wrong, or the browser cannot reach Vite | Verify the layout renders the runtime once and uses exact `entries` keys. In development, request `@vite/client` and the entry URL directly from the browser. |
+| Local preview works but Theme Editor assets or HMR do not | Shopify's HTTPS iframe cannot use the local HTTP origin, or the tunnel does not forward WebSockets | Use a stable HTTPS `devOrigin`, verify its certificate and CORS access, ensure HTTP and WebSocket forwarding work, and restart Vite after URL changes. |
+
+During development all generated script and stylesheet tags use anonymous CORS. Once the development snippet is active, the plugin writes one readiness message through Vite's logger; Vite's `logLevel` and custom logger still apply.
 
 ## Public API
 
@@ -56,7 +205,7 @@ cloudflared tunnel --url http://127.0.0.1:5173
 Keep that process running, then use the HTTPS URL it prints:
 
 ```sh
-SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com bun run playground:dev
+SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com npm run playground:dev
 ```
 
 Start the tunnel before the playground so the generated snippet and Vite WebSocket configuration receive the correct origin. Quick-tunnel URLs usually change when restarted; update `SHOPIFY_VITE_ORIGIN` and restart the playground whenever that happens. A tunnel is unnecessary when testing only through the local storefront preview.
@@ -144,7 +293,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Honor Vite build options that affect generated module preloads and CSS code splitting.
 - [x] Support explicit `.pcss` and `.postcss` stylesheet entries.
 - [x] Add an end-to-end fixture against a real Shopify development workflow.
-- [ ] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
+- [x] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
 - [ ] Complete release-readiness checks, documentation, and packaging validation.
 
 ### P4 — Optional integrations
