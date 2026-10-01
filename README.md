@@ -73,7 +73,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Keep startup logging concise and useful.
 - [x] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
 - [x] Document HMR troubleshooting for local and tunneled development.
-- [ ] Add repository agent instructions for contributors and automation.
+- [x] Add repository agent instructions for contributors and automation.
 
 ### P2 — Maintainability
 
