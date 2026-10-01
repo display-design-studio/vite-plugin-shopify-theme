@@ -35,6 +35,12 @@ During `vite` development the snippet points at the resolved local server and ma
 
 Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
 
+## HMR troubleshooting
+
+Run Vite and [`shopify theme dev`](https://shopify.dev/docs/api/shopify-cli/theme/theme-dev) together so Shopify serves the theme while Vite serves its frontend modules. Without `SHOPIFY_VITE_ORIGIN`, the generated snippet uses Vite's local origin. Set that variable to a stable HTTPS origin only when the storefront must reach Vite through a separately managed tunnel; the tunnel must forward both HTTP and WebSocket traffic. The plugin applies the corresponding Vite [`server.ws`](https://vite.dev/config/server-options.html#server-ws) configuration, but does not create or keep the tunnel alive.
+
+If HMR does not connect, verify in the browser that `@vite/client` and the requested entry load from the expected origin, that CORS permits the tunnel origin, that its HTTPS certificate is trusted, and that the WebSocket connection succeeds. Restart Vite whenever the tunnel URL changes so the snippet and WebSocket configuration use the new origin.
+
 The vendored [official Skeleton Theme playground](playground/skeleton-theme) includes a dependency-free Node orchestrator for Vite and `shopify theme dev`. See its [provenance and deliberate refresh procedure](playground/skeleton-theme/UPSTREAM.md).
 
 ## Commands
@@ -65,8 +71,8 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Apply CORS attributes consistently to generated development tags.
 - [x] Turn configuration and filesystem failures into actionable diagnostics.
 - [x] Keep startup logging concise and useful.
-- [ ] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
-- [ ] Document HMR troubleshooting for local and tunneled development.
+- [x] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
+- [x] Document HMR troubleshooting for local and tunneled development.
 - [ ] Add repository agent instructions for contributors and automation.
 
 ### P2 — Maintainability

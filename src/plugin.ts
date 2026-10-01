@@ -99,6 +99,9 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           updateLock(options.themeRoot, owner);
           const entryCount = Object.keys(options.entries).length;
           config.logger.info(`[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`);
+          if (options.devOrigin) {
+            config.logger.warn(`[shopify-theme] External development origin ${origin} must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.`);
+          }
         } catch (error) {
           try { cleanup(); } catch { /* preserve startup diagnostic */ }
           throw error;

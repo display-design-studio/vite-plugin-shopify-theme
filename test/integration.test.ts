@@ -37,12 +37,13 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
   const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, devOrigin }) as any;
   const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
   const info = vi.fn();
-  plugin.configResolved({ command: 'serve', logger: { info } });
+  const warn = vi.fn();
+  plugin.configResolved({ command: 'serve', logger: { info, warn } });
   const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
   httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
   const server = { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer };
   plugin.configureServer(server);
-  return { plugin, contribution, httpServer, info };
+  return { plugin, contribution, httpServer, info, warn };
 }
 
 describe('isolated builds', () => {
@@ -125,18 +126,22 @@ describe('development ownership and recovery', () => {
     const original = readFileSync(snippetPath(root), 'utf8');
     const first = devServer(root);
     expect(first.info).not.toHaveBeenCalled();
+    expect(first.warn).not.toHaveBeenCalled();
     expect(existsSync(lockPath(root))).toBe(true);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
     first.httpServer.emit('listening');
     expect(first.info).toHaveBeenCalledExactlyOnceWith('[shopify-theme] Development assets ready at http://127.0.0.1:5173 (2 entries; snippet: snippets/vite-tag.liquid).');
+    expect(first.warn).not.toHaveBeenCalled();
     expect(readFileSync(snippetPath(root), 'utf8')).toContain('http://127.0.0.1:5173/@vite/client');
     first.plugin.closeServer();
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
     expect(existsSync(lockPath(root))).toBe(false);
 
     const restarted = devServer(root, 'https://vite.example.test');
+    expect(restarted.warn).not.toHaveBeenCalled();
     restarted.httpServer.emit('listening');
     expect(restarted.info).toHaveBeenCalledExactlyOnceWith('[shopify-theme] Development assets ready at https://vite.example.test (2 entries; snippet: snippets/vite-tag.liquid).');
+    expect(restarted.warn).toHaveBeenCalledExactlyOnceWith('[shopify-theme] External development origin https://vite.example.test must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.');
     expect(restarted.contribution.server.ws).toMatchObject({ protocol: 'wss', host: 'vite.example.test', clientPort: 443 });
     restarted.httpServer.emit('close');
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
@@ -191,15 +196,17 @@ describe('development ownership and recovery', () => {
   it('reports an atomic snippet write failure and releases startup ownership', () => {
     const root = fixture();
     writeFileSync(join(root, 'blocked'), 'not a directory');
-    const plugin = shopifyTheme({ entries, themeRoot: root, snippet: 'blocked/vite-tag.liquid' }) as any;
+    const plugin = shopifyTheme({ entries, themeRoot: root, snippet: 'blocked/vite-tag.liquid', devOrigin: 'https://vite.example.test' }) as any;
     const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
     const info = vi.fn();
-    plugin.configResolved({ command: 'serve', logger: { info } });
+    const warn = vi.fn();
+    plugin.configResolved({ command: 'serve', logger: { info, warn } });
     const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
     httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
     plugin.configureServer({ config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer });
     expect(() => httpServer.emit('listening')).toThrow(/atomically write.*blocked\/vite-tag\.liquid.*parent directory is writable/i);
     expect(info).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
     expect(existsSync(lockPath(root))).toBe(false);
     expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
