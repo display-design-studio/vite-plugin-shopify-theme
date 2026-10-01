@@ -109,6 +109,20 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Document the supported package exports.
 - [x] Publish and maintain a support matrix.
 
+### P3 — Core compatibility and release readiness
+
+- [ ] Honor Vite build options that affect generated module preloads and CSS code splitting.
+- [ ] Support explicit `.pcss` and `.postcss` stylesheet entries.
+- [ ] Add an end-to-end fixture against a real Shopify development workflow.
+- [ ] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
+- [ ] Complete release-readiness checks, documentation, and packaging validation.
+
+### P4 — Optional integrations
+
+- [ ] Evaluate React Refresh support without making React part of the core package contract.
+- [ ] Evaluate advanced preload policies and asset versioning behind explicit configuration.
+- [ ] Evaluate separately distributed tunnel adapters without adding tunnel ownership or dependencies to the core plugin.
+
 ### Barrel reference
 
-Adopt the reference project's useful discipline around explicit entry configuration, deterministic manifests, focused lifecycle handling, actionable diagnostics, and realistic integration fixtures. Intentionally defer its heavier features—automatic entry discovery, proxy ownership, tunnel management, framework-specific helpers, and broader asset orchestration—until they can be justified without weakening the invariants above.
+Adopt the reference project's useful discipline around explicit entry configuration, deterministic manifests, focused lifecycle handling, actionable diagnostics, and realistic integration fixtures. Automatic entry discovery and core tunnel management remain intentionally excluded: explicit entrypoints and zero runtime dependencies are product constraints, not temporary omissions. Framework-specific helpers, tunnel adapters, and broader asset orchestration may be evaluated only as optional integrations that do not weaken the invariants above.
