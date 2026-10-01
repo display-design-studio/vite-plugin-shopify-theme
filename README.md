@@ -47,6 +47,20 @@ Files below `dist/*`, internal modules, and undeclared package subpaths are impl
 
 Run Vite and [`shopify theme dev`](https://shopify.dev/docs/api/shopify-cli/theme/theme-dev) together so Shopify serves the theme while Vite serves its frontend modules. Without `SHOPIFY_VITE_ORIGIN`, the generated snippet uses Vite's local origin. Set that variable to a stable HTTPS origin only when the storefront must reach Vite through a separately managed tunnel; the tunnel must forward both HTTP and WebSocket traffic. The plugin applies the corresponding Vite [`server.ws`](https://vite.dev/config/server-options.html#server-ws) configuration, but does not create or keep the tunnel alive.
 
+The local storefront preview can load Vite directly from `http://127.0.0.1:5173`. Shopify's HTTPS Theme Editor cannot reliably load that HTTP origin inside its preview iframe, so CSS, JavaScript, and HMR may appear to be missing there even though the local preview works. To use the Theme Editor, start a separate HTTPS tunnel that forwards to Vite, copy its public origin, and pass it when starting development. For example, with a Cloudflare quick tunnel:
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:5173
+```
+
+Keep that process running, then use the HTTPS URL it prints:
+
+```sh
+SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com bun run playground:dev
+```
+
+Start the tunnel before the playground so the generated snippet and Vite WebSocket configuration receive the correct origin. Quick-tunnel URLs usually change when restarted; update `SHOPIFY_VITE_ORIGIN` and restart the playground whenever that happens. A tunnel is unnecessary when testing only through the local storefront preview.
+
 If HMR does not connect, verify in the browser that `@vite/client` and the requested entry load from the expected origin, that CORS permits the tunnel origin, that its HTTPS certificate is trusted, and that the WebSocket connection succeeds. Restart Vite whenever the tunnel URL changes so the snippet and WebSocket configuration use the new origin.
 
 The vendored [official Skeleton Theme playground](playground/skeleton-theme) includes a dependency-free Node orchestrator for Vite and `shopify theme dev`. See its [provenance and deliberate refresh procedure](playground/skeleton-theme/UPSTREAM.md).
