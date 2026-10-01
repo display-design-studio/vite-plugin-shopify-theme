@@ -5,7 +5,7 @@ import type { UserConfig } from 'vite';
 export const CSS_BUNDLE_ENTRY = 'style.css';
 export const CSS_BUNDLE_ID = 'virtual:shopify-theme-css-bundle';
 export const RESOLVED_CSS_BUNDLE_ID = `\0${CSS_BUNDLE_ID}`;
-const STYLE_ENTRY_RE = /\.(?:css|scss|sass|less|styl|stylus)$/i;
+const STYLE_ENTRY_RE = /\.(?:css|pcss|postcss|scss|sass|less|styl|stylus)$/i;
 
 export interface ShopifyThemeOptions {
   entries: Record<string, string>;

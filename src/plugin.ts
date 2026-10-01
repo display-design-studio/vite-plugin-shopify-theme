@@ -69,11 +69,14 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       owner = acquireLock(options.themeRoot, 'build');
       installProcessHandlers();
     },
-    generateBundle(_output, bundle) {
-      if (config.command !== 'build' || cssCodeSplit) return;
-      for (const [file, output] of Object.entries(bundle)) {
-        if (output.type === 'chunk' && output.facadeModuleId === RESOLVED_CSS_BUNDLE_ID) delete bundle[file];
-      }
+    generateBundle: {
+      order: 'post',
+      handler(_output, bundle) {
+        if (config.command !== 'build' || cssCodeSplit) return;
+        for (const [file, output] of Object.entries(bundle)) {
+          if (output.type === 'chunk' && output.facadeModuleId === RESOLVED_CSS_BUNDLE_ID) delete bundle[file];
+        }
+      },
     },
     writeBundle(_output, bundle) {
       if (config.command !== 'build') return;

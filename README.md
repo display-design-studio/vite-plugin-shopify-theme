@@ -29,7 +29,7 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 
 `entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. The plugin owns Vite's input (including the Vite 8.0 build-input compatibility path), disables `publicDir`, uses a relative base, emits flat Shopify-compatible assets, retains manually-authored assets, and deletes only obsolete files recorded by the plugin's preceding successful build.
 
-Stylesheet entries may use Vite's supported `.css`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
+Stylesheet entries may use Vite's supported `.css`, `.pcss`, `.postcss`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Vite handles `.pcss` and `.postcss` through its PostCSS pipeline; advanced PostCSS syntax requires the corresponding Vite/PostCSS configuration and plugins. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
 
 Production snippets follow Vite's `build.modulePreload` and `build.cssCodeSplit` settings. With `cssCodeSplit: false`, all CSS—including explicit stylesheet entries—is emitted as one shared asset and automatically included once in every entry branch; do not render a separate `style.css` entry.
 
@@ -128,7 +128,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 ### P3 — Core compatibility and release readiness
 
 - [x] Honor Vite build options that affect generated module preloads and CSS code splitting.
-- [ ] Support explicit `.pcss` and `.postcss` stylesheet entries.
+- [x] Support explicit `.pcss` and `.postcss` stylesheet entries.
 - [ ] Add an end-to-end fixture against a real Shopify development workflow.
 - [ ] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
 - [ ] Complete release-readiness checks, documentation, and packaging validation.

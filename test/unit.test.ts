@@ -105,7 +105,7 @@ describe('manifest rendering', () => {
     expect(snippet.match(/crossorigin="anonymous"/g)).toHaveLength(3);
   });
 
-  it.each(['css', 'scss', 'sass', 'less', 'styl', 'stylus', 'module.scss', 'CSS'])(
+  it.each(['css', 'pcss', 'postcss', 'scss', 'sass', 'less', 'styl', 'stylus', 'module.scss', 'module.pcss', 'module.postcss', 'CSS'])(
     'renders .%s entries as stylesheets in development', (extension) => {
       const root = fixture();
       const path = join(root, `frontend/theme.${extension}`);
@@ -137,6 +137,22 @@ describe('Vite 8 configuration', () => {
     expect(contribution.input).toEqual({ app: join(root, 'frontend/theme.ts'), 'style.css': 'virtual:shopify-theme-css-bundle' });
     expect(plugin.resolveId('virtual:shopify-theme-css-bundle')).toBe('\0virtual:shopify-theme-css-bundle');
     expect(plugin.load('\0virtual:shopify-theme-css-bundle')).toBe(`import ${JSON.stringify(join(root, 'frontend/theme.css'))};`);
+  });
+
+  it('aggregates .pcss and .postcss stylesheet inputs when CSS splitting is disabled', () => {
+    const root = fixture();
+    writeFileSync(join(root, 'frontend/theme.pcss'), '.pcss {}');
+    writeFileSync(join(root, 'frontend/admin.postcss'), '.postcss {}');
+    const plugin = shopifyTheme({ entries: {
+      'theme.pcss': 'frontend/theme.pcss',
+      'admin.postcss': 'frontend/admin.postcss',
+    }, themeRoot: root }) as any;
+    const contribution = plugin.config({ root, build: { cssCodeSplit: false } }, { command: 'build', mode: 'production' });
+    expect(contribution.input).toEqual({ 'style.css': 'virtual:shopify-theme-css-bundle' });
+    expect(plugin.load('\0virtual:shopify-theme-css-bundle')).toBe([
+      `import ${JSON.stringify(join(root, 'frontend/theme.pcss'))};`,
+      `import ${JSON.stringify(join(root, 'frontend/admin.postcss'))};`,
+    ].join('\n'));
   });
 
   it('leaves development inputs unchanged when the shared config disables CSS splitting', () => {

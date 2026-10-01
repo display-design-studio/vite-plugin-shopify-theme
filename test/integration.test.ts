@@ -18,6 +18,8 @@ function fixture() {
   mkdirSync(join(root, 'assets'));
   writeFileSync(join(root, 'frontend/theme.ts'), "import './shared.css'; console.log('theme')");
   writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: red }');
+  writeFileSync(join(root, 'frontend/theme.pcss'), '.pcss-entry { color: green }');
+  writeFileSync(join(root, 'frontend/admin.postcss'), '.postcss-entry { color: purple }');
   writeFileSync(join(root, 'frontend/shared.css'), '.shared { color: blue }');
   writeFileSync(join(root, 'snippets/vite-tag.liquid'), 'original production snippet\n');
   writeFileSync(join(root, 'assets/manual.svg'), '<svg/>');
@@ -31,6 +33,16 @@ const lockPath = (root: string) => join(root, '.vite-shopify-theme.lock');
 
 async function buildTheme(root: string, extraPlugins: any[] = [], buildOptions: Record<string, unknown> = {}) {
   return build({ configFile: false, root, logLevel: 'silent', build: buildOptions, plugins: [shopifyTheme({ entries, themeRoot: root }), ...extraPlugins] });
+}
+
+const postcssEntries = {
+  'theme.pcss': 'frontend/theme.pcss',
+  'admin.postcss': 'frontend/admin.postcss',
+  'theme.ts': 'frontend/theme.ts',
+};
+
+async function buildPostcssTheme(root: string, buildOptions: Record<string, unknown> = {}) {
+  return build({ configFile: false, root, logLevel: 'silent', build: buildOptions, plugins: [shopifyTheme({ entries: postcssEntries, themeRoot: root })] });
 }
 
 function devServer(root: string, devOrigin?: string, configuredEntries: Record<string, string> = entries) {
@@ -47,6 +59,35 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
 }
 
 describe('isolated builds', () => {
+  it('builds explicit .pcss and .postcss entries as CSS assets and Liquid stylesheets', async () => {
+    const root = fixture();
+    await buildPostcssTheme(root);
+    const manifest = JSON.parse(readFileSync(join(root, 'assets/vite-manifest.json'), 'utf8')) as Record<string, { file: string }>;
+    expect(manifest['frontend/theme.pcss']?.file).toMatch(/\.css$/);
+    expect(manifest['frontend/admin.postcss']?.file).toMatch(/\.css$/);
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet).toContain("{% when 'theme.pcss' %}");
+    expect(snippet).toContain(`{{ '${manifest['frontend/theme.pcss'].file}' | asset_url }}`);
+    expect(snippet).toContain("{% when 'admin.postcss' %}");
+    expect(snippet).toContain(`{{ '${manifest['frontend/admin.postcss'].file}' | asset_url }}`);
+    const themeBranch = snippet.slice(snippet.indexOf("{% when 'theme.pcss' %}"), snippet.indexOf("{% when 'admin.postcss' %}"));
+    const adminBranch = snippet.slice(snippet.indexOf("{% when 'admin.postcss' %}"), snippet.indexOf("{% when 'theme.ts' %}"));
+    expect(themeBranch).not.toContain('type="module"');
+    expect(adminBranch).not.toContain('type="module"');
+  });
+
+  it('aggregates explicit .pcss and .postcss entries when CSS splitting is disabled', async () => {
+    const root = fixture();
+    await buildPostcssTheme(root, { cssCodeSplit: false });
+    const manifest = JSON.parse(readFileSync(join(root, 'assets/vite-manifest.json'), 'utf8')) as Record<string, { file: string }>;
+    expect(manifest['style.css']?.file).toMatch(/\.css$/);
+    const css = readFileSync(join(root, 'assets', manifest['style.css'].file), 'utf8');
+    expect(css).toContain('.pcss-entry');
+    expect(css).toContain('.postcss-entry');
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet.match(new RegExp(manifest['style.css'].file.replaceAll('.', '\\.'), 'g'))).toHaveLength(3);
+  });
+
   it('aggregates explicit CSS entries without emitting a JavaScript shim', async () => {
     const root = fixture();
     await buildTheme(root, [], { cssCodeSplit: false, modulePreload: false });
