@@ -73,7 +73,18 @@ describe('manifest rendering', () => {
     expect(snippet).toContain('https://vite.example.test/@vite/client');
     expect(snippet).toContain('https://vite.example.test/@id/__x00__virtual:shopify-theme-hot-reload');
     expect(snippet).toContain('https://vite.example.test/frontend/theme.ts');
+    expect(snippet.match(/crossorigin="anonymous"/g)).toHaveLength(3);
   });
+
+  it.each(['css', 'scss', 'sass', 'less', 'styl', 'stylus', 'module.scss', 'CSS'])(
+    'renders .%s entries as stylesheets in development', (extension) => {
+      const root = fixture();
+      const path = join(root, `frontend/theme.${extension}`);
+      const snippet = developmentSnippet('https://vite.example.test', { theme: path }, root);
+      expect(snippet).toContain(`<link rel="stylesheet" href="https://vite.example.test/frontend/theme.${extension}" crossorigin="anonymous">`);
+      expect(snippet).not.toContain(`<script type="module" src="https://vite.example.test/frontend/theme.${extension}"`);
+    },
+  );
 });
 
 describe('Vite 8 configuration', () => {
