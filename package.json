@@ -1,10 +1,14 @@
 {
   "name": "vite-plugin-shopify-theme",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A focused Vite 8 integration for Shopify themes",
   "type": "module",
   "license": "MIT",
-  "files": ["dist", "README.md", "LICENSE"],
+  "repository": { "type": "git", "url": "git+https://github.com/LucaArgentieri/vite-plugin-shopify-theme.git" },
+  "homepage": "https://github.com/LucaArgentieri/vite-plugin-shopify-theme#readme",
+  "bugs": { "url": "https://github.com/LucaArgentieri/vite-plugin-shopify-theme/issues" },
+  "keywords": ["vite-plugin", "vite", "shopify", "liquid", "hmr"],
+  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
@@ -22,8 +26,10 @@
     "compat:vite": "node scripts/check-compatibility.mjs vite",
     "compat:shopify": "node scripts/check-compatibility.mjs shopify",
     "compat": "node scripts/check-compatibility.mjs all",
-    "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check"
+    "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check",
+    "prepublishOnly": "npm run check"
   },
+  "publishConfig": { "registry": "https://registry.npmjs.org/" },
   "peerDependencies": { "vite": "^8.0.0" },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -32,5 +38,5 @@
     "vite-plugin-dts": "^5.1.1",
     "vitest": "^5.0.3"
   },
-  "engines": { "node": ">=20.19.0" }
+  "engines": { "node": "^20.19.0 || >=22.12.0" }
 }

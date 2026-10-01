@@ -4,7 +4,7 @@ A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries in
 
 ## Requirements and installation
 
-- Node.js `>=20.19.0`.
+- Node.js `^20.19.0 || >=22.12.0`.
 - Vite `^8.0.0` in the consuming project.
 - A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI is useful for local theme previews, but is not a plugin dependency.
 
@@ -166,6 +166,53 @@ Then render the custom snippet name:
 
 Paths are resolved from Vite's configured root when one is supplied, otherwise from the process working directory. Avoid also setting Vite `root` when a direct `themeRoot` path is clearer.
 
+## Why Vite-only
+
+This package is a Vite plugin rather than a framework-neutral asset builder. Its contract depends directly on Vite plugin hooks: `config` and `configResolved` establish the theme root and deterministic build settings; `resolveId` and `load` provide the virtual reload and aggregate-CSS modules; `buildStart`, `generateBundle`, `writeBundle`, and `closeBundle` coordinate build ownership and generate Liquid from Vite's output; and `configureServer`, `handleHotUpdate`, and `closeServer` manage the development snippet and storefront reloads.
+
+Those hooks also let the plugin follow Vite's manifest, module-preload, CSS-splitting, server, and HMR behavior without duplicating Vite internally. Other bundlers do not expose the same lifecycle contract, so they are intentionally outside this package's scope.
+
+## Migrating from 0.1.0
+
+Version 0.2.0 replaces the contract published in 0.1.0. Update configuration and development scripts together rather than treating it as a drop-in upgrade.
+
+1. Remove calls to the `shopify-theme` executable and remove its legacy CLI options. Use ordinary `vite` scripts and run Shopify CLI separately:
+
+   ```json
+   {
+     "scripts": {
+       "build": "vite build",
+       "dev": "vite"
+     }
+   }
+   ```
+
+   Start `npm run dev` and `shopify theme dev` in separate terminals.
+
+2. Replace the singular `entry` option with an explicit `entries` map. Each key becomes the Liquid-facing name and each value is a source file relative to the theme root:
+
+   ```ts
+   shopifyTheme({
+     entries: {
+       'theme.css': 'frontend/entrypoints/theme.css',
+       'theme.ts': 'frontend/entrypoints/theme.ts',
+     },
+     themeRoot: '.',
+   })
+   ```
+
+3. Treat `themeRoot` as the plugin boundary. Entry sources, `assets`, the generated snippet, ownership state, and the process lock all live inside it. If `vite.config.ts` is outside the Shopify theme, set `themeRoot` to that theme directory instead of relying on the old working-directory behavior.
+
+4. Render the generated snippet once without an entry to install the development clients, then render each named entry where it belongs:
+
+   ```liquid
+   {% render 'vite-tag' %}
+   {% render 'vite-tag', entry: 'theme.css' %}
+   {% render 'vite-tag', entry: 'theme.ts' %}
+   ```
+
+`shopifyTheme()` now returns a single Vite plugin. The package is ESM-only, has no runtime dependencies, and supports imports only from `vite-plugin-shopify-theme`; remove CommonJS loading and imports from package internals.
+
 ## Troubleshooting
 
 Plugin diagnostics begin with `[shopify-theme]` and identify the relevant option or filesystem path.
@@ -250,11 +297,11 @@ Without an environment override, the Vite check uses `8` and the Shopify Theme C
 
 | Component | Supported contract | CI coverage |
 | --- | --- | --- |
-| Node.js | `>=20.19.0` | 20.19.0, 22, 24, and 26 |
+| Node.js | `^20.19.0 || >=22.12.0` | 20.19.0, 22, 24, and 26 |
 | Vite | `^8.0.0` peer dependency | Minimum 8.0.0 and latest 8.x on every tested Node version |
 | Shopify CLI | Not a dependency | Theme Check with 3.94.3 and latest 4.x on Node 24 |
 
-Node 20 remains supported despite its EOL and will be retained until a future incompatible major release. Shopify CLI is used only for compatibility verification; consumers do not receive it as a dependency.
+Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are excluded because Vite 8 does not support them. Node 20 remains supported despite its EOL and will be retained until a future incompatible major release. Shopify CLI is used only for compatibility verification; consumers do not receive it as a dependency.
 
 ## Roadmap
 
@@ -294,7 +341,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Support explicit `.pcss` and `.postcss` stylesheet entries.
 - [x] Add an end-to-end fixture against a real Shopify development workflow.
 - [x] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
-- [ ] Complete release-readiness checks, documentation, and packaging validation.
+- [x] Complete release-readiness checks, documentation, and packaging validation.
 
 ### P4 — Optional integrations
 

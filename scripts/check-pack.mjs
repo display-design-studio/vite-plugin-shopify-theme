@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 export const expectedFiles = [
+  'CHANGELOG.md',
   'LICENSE',
   'README.md',
   'dist/config.d.ts',
@@ -61,14 +62,27 @@ export function validateFiles(files) {
 
 export function validateMetadata(manifest) {
   strictEqual(manifest.name, 'vite-plugin-shopify-theme', 'package name must remain stable');
+  strictEqual(manifest.version, '0.2.0', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
   strictEqual(manifest.main, './dist/index.js', 'main entrypoint differs');
   strictEqual(manifest.types, './dist/index.d.ts', 'type entrypoint differs');
-  deepStrictEqual(manifest.files, ['dist', 'README.md', 'LICENSE'], 'files allowlist differs');
-  deepStrictEqual(manifest.engines, { node: '>=20.19.0' }, 'Node engine differs');
+  deepStrictEqual(manifest.files, ['dist', 'README.md', 'CHANGELOG.md', 'LICENSE'], 'files allowlist differs');
+  deepStrictEqual(manifest.engines, { node: '^20.19.0 || >=22.12.0' }, 'Node engine differs');
   deepStrictEqual(manifest.peerDependencies, { vite: '^8.0.0' }, 'Vite peer range differs');
-  if ('dependencies' in manifest) deepStrictEqual(manifest.dependencies, {}, 'runtime dependencies must remain empty');
+  strictEqual('bin' in manifest, false, 'package must not publish executables');
+  strictEqual('dependencies' in manifest, false, 'package must not declare runtime dependencies');
+  deepStrictEqual(manifest.publishConfig, { registry: 'https://registry.npmjs.org/' }, 'publish registry differs');
+  strictEqual(manifest.scripts?.prepublishOnly, 'npm run check', 'prepublishOnly guard differs');
+  deepStrictEqual(manifest.repository, {
+    type: 'git',
+    url: 'git+https://github.com/LucaArgentieri/vite-plugin-shopify-theme.git',
+  }, 'repository metadata differs');
+  strictEqual(manifest.homepage, 'https://github.com/LucaArgentieri/vite-plugin-shopify-theme#readme', 'homepage metadata differs');
+  deepStrictEqual(manifest.bugs, { url: 'https://github.com/LucaArgentieri/vite-plugin-shopify-theme/issues' }, 'issue tracker metadata differs');
+  for (const keyword of ['vite-plugin', 'shopify', 'liquid', 'hmr']) {
+    strictEqual(manifest.keywords?.includes(keyword), true, `required keyword ${JSON.stringify(keyword)} is missing`);
+  }
   deepStrictEqual(Object.keys(manifest.exports ?? {}), ['.'], 'only the root package subpath may be exported');
   deepStrictEqual(manifest.exports['.'], {
     types: './dist/index.d.ts',
@@ -111,7 +125,7 @@ export async function checkPackage() {
       const raw = execFileSync('npm', ['pack', '--json', '--pack-destination', packDirectory], {
         cwd: root,
         encoding: 'utf8',
-        env: { ...process.env, npm_config_cache: cache },
+        env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
       });
       const [result] = JSON.parse(raw);
       if (!result?.filename || !Array.isArray(result.files)) throw new Error('npm pack returned an invalid manifest');
@@ -126,7 +140,7 @@ export async function checkPackage() {
     ], {
       cwd: consumer,
       stdio: 'pipe',
-      env: { ...process.env, npm_config_cache: cache },
+      env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
     }));
 
     const packageDirectory = join(consumer, 'node_modules', 'vite-plugin-shopify-theme');
