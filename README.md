@@ -27,7 +27,7 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 {% render 'vite-tag', entry: 'theme.ts' %}
 ```
 
-`entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. The plugin owns Vite's top-level `input`, disables `publicDir`, uses a relative base, emits flat Shopify-compatible assets, retains manually-authored assets, and deletes only obsolete files recorded by the plugin's preceding successful build.
+`entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. The plugin owns Vite's input (including the Vite 8.0 build-input compatibility path), disables `publicDir`, uses a relative base, emits flat Shopify-compatible assets, retains manually-authored assets, and deletes only obsolete files recorded by the plugin's preceding successful build.
 
 Stylesheet entries may use Vite's supported `.css`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
 
@@ -50,6 +50,16 @@ npm run check
 ```
 
 Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`.
+
+Compatibility checks install a freshly packed copy of the plugin and their requested tools in an isolated temporary directory, so they require network access and intentionally remain outside `npm run check`:
+
+```sh
+VITE_VERSION=8.0.0 npm run compat:vite
+SHOPIFY_CLI_VERSION=3.94.3 npm run compat:shopify
+VITE_VERSION=8 SHOPIFY_CLI_VERSION=4 npm run compat
+```
+
+Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`. CI covers Node 20.19.0, 22, 24, and 26 against both Vite 8.0.0 and the latest Vite 8 release; it also covers Shopify CLI 3.94.3 and the latest 4.x release on Node 24. Node 20 remains supported and tested even though it is EOL, because `engines.node` remains `>=20.19.0`.
 
 ## Roadmap
 
@@ -78,7 +88,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 ### P2 — Maintainability
 
 - [x] Separate internal responsibilities for configuration, asset ownership, snippet rendering, and lifecycle state.
-- [ ] Expand compatibility fixtures across supported Node, Vite, and Shopify CLI versions.
+- [x] Expand compatibility fixtures across supported Node, Vite, and Shopify CLI versions.
 - [ ] Strengthen package-content and install validation.
 - [ ] Document the supported package exports.
 - [ ] Publish and maintain a support matrix.

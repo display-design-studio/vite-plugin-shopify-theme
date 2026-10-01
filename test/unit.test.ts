@@ -103,7 +103,7 @@ describe('Vite 8 configuration', () => {
     const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root, devOrigin: 'https://vite.example.test' }) as any;
     const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
     expect(contribution).toMatchObject({ publicDir: false, input: { app: join(root, 'frontend/theme.ts') } });
-    expect(contribution.build.rolldownOptions.input).toBeUndefined();
+    expect(contribution.build.rolldownOptions.input).toEqual({ app: join(root, 'frontend/theme.ts') });
     expect(contribution.server).toMatchObject({
       cors: { origin: 'https://vite.example.test' }, allowedHosts: ['vite.example.test'],
       ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },

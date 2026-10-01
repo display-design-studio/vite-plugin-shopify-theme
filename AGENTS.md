@@ -14,4 +14,6 @@ Never delete unrecorded theme assets. Ownership state may name only flat generat
 
 Unit coverage belongs in `test/unit.test.ts`; filesystem and Vite lifecycle coverage belongs in `test/integration.test.ts`. Run `npm run check` for canonical verification, or the documented individual scripts while iterating. Always run `git diff --check` before committing.
 
+The compatibility matrix is a separate, network-dependent verification because it installs the packed package with selected Vite and Shopify CLI versions. Run `npm run compat:vite`, `npm run compat:shopify`, or `npm run compat`; do not add these commands to `npm run check` or assume they work offline.
+
 `playground/skeleton-theme` is a vendored upstream snapshot with a small integration overlay. Do not casually reformat or modernize vendored files, regenerate unrelated assets, or replace the snapshot. Follow `playground/skeleton-theme/UPSTREAM.md` for provenance and refreshes, preserving its listed overlay and manual assets.

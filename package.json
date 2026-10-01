@@ -18,6 +18,9 @@
     "playground:dev": "npm run build && npm --prefix playground/skeleton-theme run dev",
     "pack:check": "node scripts/check-pack.mjs",
     "theme:check": "npm --prefix playground/skeleton-theme exec -- shopify theme check --path playground/skeleton-theme",
+    "compat:vite": "node scripts/check-compatibility.mjs vite",
+    "compat:shopify": "node scripts/check-compatibility.mjs shopify",
+    "compat": "node scripts/check-compatibility.mjs all",
     "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check"
   },
   "peerDependencies": { "vite": "^8.0.0" },

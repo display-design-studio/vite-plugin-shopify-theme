@@ -1,0 +1,1 @@
+This manually authored asset must survive the Vite build.

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {{ content_for_header }}
+    {% render 'vite-tag' %}
+    {% render 'vite-tag', entry: 'theme.css' %}
+  </head>
+  <body>
+    {% render 'manual' %}
+    {{ content_for_layout }}
+    {% render 'vite-tag', entry: 'theme.ts' %}
+  </body>
+</html>

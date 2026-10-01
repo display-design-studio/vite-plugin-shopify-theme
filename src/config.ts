@@ -104,7 +104,10 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig): UserCo
     input: { ...options.entries }, server,
     build: {
       outDir: resolve(options.themeRoot, 'assets'), emptyOutDir: false, manifest: VITE_MANIFEST,
-      rolldownOptions: { output: { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
+      // Vite 8.0 reads build inputs here; later Vite 8 releases read the
+      // top-level input above. Supplying the same owned map in both places is
+      // harmless after the migration and keeps the declared minimum working.
+      rolldownOptions: { input: { ...options.entries }, output: { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
     },
   };
 }
