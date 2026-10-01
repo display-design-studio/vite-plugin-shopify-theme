@@ -16,6 +16,7 @@
     "test:integration": "vitest run test/integration.test.ts",
     "playground:build": "npm --prefix playground/skeleton-theme run build",
     "playground:dev": "npm run build && npm --prefix playground/skeleton-theme run dev",
+    "e2e:shopify": "npm run build && node scripts/e2e-shopify.mjs",
     "pack:check": "node scripts/check-pack.mjs",
     "theme:check": "npm --prefix playground/skeleton-theme exec -- shopify theme check --path playground/skeleton-theme",
     "compat:vite": "node scripts/check-compatibility.mjs vite",

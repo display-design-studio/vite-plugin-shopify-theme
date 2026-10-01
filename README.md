@@ -65,13 +65,27 @@ If HMR does not connect, verify in the browser that `@vite/client` and the reque
 
 The vendored [official Skeleton Theme playground](playground/skeleton-theme) includes a dependency-free Node orchestrator for Vite and `shopify theme dev`. See its [provenance and deliberate refresh procedure](playground/skeleton-theme/UPSTREAM.md).
 
+### Shopify development end-to-end test
+
+The real Shopify development smoke test is opt-in because it uploads the playground as a development theme and requires access to a Shopify store. It is intentionally excluded from `npm run check` and CI. Install the repository dependencies, provide the [Shopify CLI `theme dev` environment variables](https://shopify.dev/docs/api/shopify-cli/theme/theme-dev), and run:
+
+```sh
+SHOPIFY_FLAG_STORE=example.myshopify.com \
+SHOPIFY_CLI_THEME_TOKEN=shptka_... \
+npm run e2e:shopify
+```
+
+`SHOPIFY_FLAG_STORE_PASSWORD` is also honored when the storefront is password protected. The harness never places credentials in process arguments or files. It builds the package, starts Vite and `shopify theme dev` against the Skeleton Theme playground, requests the local Shopify preview, verifies the development tags for `theme.css` and `theme.ts`, and then loads both entrypoints from Vite. It does not enable `--theme-editor-sync`, so remote Theme Editor changes are not synchronized into the tracked fixture.
+
+Vite uses port `5173` and the Shopify preview uses port `9292`. Override them with `SHOPIFY_VITE_PORT` and `SHOPIFY_THEME_PORT`; use `SHOPIFY_E2E_TIMEOUT_MS` to change the 120-second startup timeout. Occupied ports fail before either server starts. The harness stops both processes on success, failure, `SIGINT`, or `SIGTERM` and verifies that the plugin restored the original generated snippet.
+
 ## Commands
 
 ```sh
 npm run check
 ```
 
-Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`.
+Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`. The credentialed `e2e:shopify` smoke test is documented above and remains opt-in.
 
 Compatibility checks install a freshly packed copy of the plugin and their requested tools in an isolated temporary directory, so they require network access and intentionally remain outside `npm run check`:
 
@@ -129,7 +143,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 - [x] Honor Vite build options that affect generated module preloads and CSS code splitting.
 - [x] Support explicit `.pcss` and `.postcss` stylesheet entries.
-- [ ] Add an end-to-end fixture against a real Shopify development workflow.
+- [x] Add an end-to-end fixture against a real Shopify development workflow.
 - [ ] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
 - [ ] Complete release-readiness checks, documentation, and packaging validation.
 
