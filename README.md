@@ -71,7 +71,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 ### P2 — Maintainability
 
-- [ ] Separate internal responsibilities for configuration, asset ownership, snippet rendering, and lifecycle state.
+- [x] Separate internal responsibilities for configuration, asset ownership, snippet rendering, and lifecycle state.
 - [ ] Expand compatibility fixtures across supported Node, Vite, and Shopify CLI versions.
 - [ ] Strengthen package-content and install validation.
 - [ ] Document the supported package exports.
