@@ -35,6 +35,12 @@ During `vite` development the snippet points at the resolved local server and ma
 
 Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
 
+## Public API
+
+The package has one supported entrypoint: `vite-plugin-shopify-theme`. It exports `shopifyTheme` both as the default export and as a named export, plus the named utilities `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, and `productionSnippet`. Its public TypeScript types are `ShopifyThemeOptions`, `NormalizedOptions`, and `ManifestTags`.
+
+Files below `dist/*`, internal modules, and undeclared package subpaths are implementation details, not supported API. Import all public values and types from `vite-plugin-shopify-theme`.
+
 ## HMR troubleshooting
 
 Run Vite and [`shopify theme dev`](https://shopify.dev/docs/api/shopify-cli/theme/theme-dev) together so Shopify serves the theme while Vite serves its frontend modules. Without `SHOPIFY_VITE_ORIGIN`, the generated snippet uses Vite's local origin. Set that variable to a stable HTTPS origin only when the storefront must reach Vite through a separately managed tunnel; the tunnel must forward both HTTP and WebSocket traffic. The plugin applies the corresponding Vite [`server.ws`](https://vite.dev/config/server-options.html#server-ws) configuration, but does not create or keep the tunnel alive.
@@ -59,7 +65,17 @@ SHOPIFY_CLI_VERSION=3.94.3 npm run compat:shopify
 VITE_VERSION=8 SHOPIFY_CLI_VERSION=4 npm run compat
 ```
 
-Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`. CI covers Node 20.19.0, 22, 24, and 26 against both Vite 8.0.0 and the latest Vite 8 release; it also covers Shopify CLI 3.94.3 and the latest 4.x release on Node 24. Node 20 remains supported and tested even though it is EOL, because `engines.node` remains `>=20.19.0`.
+Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`.
+
+## Support matrix
+
+| Component | Supported contract | CI coverage |
+| --- | --- | --- |
+| Node.js | `>=20.19.0` | 20.19.0, 22, 24, and 26 |
+| Vite | `^8.0.0` peer dependency | Minimum 8.0.0 and latest 8.x on every tested Node version |
+| Shopify CLI | Not a dependency | Theme Check with 3.94.3 and latest 4.x on Node 24 |
+
+Node 20 remains supported despite its EOL and will be retained until a future incompatible major release. Shopify CLI is used only for compatibility verification; consumers do not receive it as a dependency.
 
 ## Roadmap
 
@@ -89,9 +105,9 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 - [x] Separate internal responsibilities for configuration, asset ownership, snippet rendering, and lifecycle state.
 - [x] Expand compatibility fixtures across supported Node, Vite, and Shopify CLI versions.
-- [ ] Strengthen package-content and install validation.
-- [ ] Document the supported package exports.
-- [ ] Publish and maintain a support matrix.
+- [x] Strengthen package-content and install validation.
+- [x] Document the supported package exports.
+- [x] Publish and maintain a support matrix.
 
 ### Barrel reference
 

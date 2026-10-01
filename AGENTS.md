@@ -16,4 +16,6 @@ Unit coverage belongs in `test/unit.test.ts`; filesystem and Vite lifecycle cove
 
 The compatibility matrix is a separate, network-dependent verification because it installs the packed package with selected Vite and Shopify CLI versions. Run `npm run compat:vite`, `npm run compat:shopify`, or `npm run compat`; do not add these commands to `npm run check` or assume they work offline.
 
+When changing the Node engine, Vite peer range, package exports, or published files, keep `package.json`, `scripts/check-pack.mjs`, the compatibility CI matrix, and the README support/API tables synchronized in the same change.
+
 `playground/skeleton-theme` is a vendored upstream snapshot with a small integration overlay. Do not casually reformat or modernize vendored files, regenerate unrelated assets, or replace the snapshot. Follow `playground/skeleton-theme/UPSTREAM.md` for provenance and refreshes, preserving its listed overlay and manual assets.
