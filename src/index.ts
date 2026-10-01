@@ -483,6 +483,8 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           if (!owner) throw diagnostic(`Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
           owner.development = { snippet: options.snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
+          const entryCount = Object.keys(options.entries).length;
+          config.logger.info(`[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`);
         } catch (error) {
           try { cleanup(); } catch { /* preserve the startup diagnostic */ }
           throw error;

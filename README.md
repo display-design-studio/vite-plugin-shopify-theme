@@ -31,7 +31,7 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 
 Stylesheet entries may use Vite's supported `.css`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
 
-During `vite` development the snippet points at the resolved local server and marks all development scripts and styles for anonymous CORS. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
+During `vite` development the snippet points at the resolved local server and marks all development scripts and styles for anonymous CORS. Once the development snippet is active, the plugin writes one concise readiness message through Vite's logger; Vite's `logLevel` and custom logger settings continue to apply. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
 
 Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
 
@@ -64,7 +64,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 - [x] Support the expected stylesheet extensions across entry handling and generated tags.
 - [x] Apply CORS attributes consistently to generated development tags.
 - [x] Turn configuration and filesystem failures into actionable diagnostics.
-- [ ] Keep startup logging concise and useful.
+- [x] Keep startup logging concise and useful.
 - [ ] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
 - [ ] Document HMR troubleshooting for local and tunneled development.
 - [ ] Add repository agent instructions for contributors and automation.
