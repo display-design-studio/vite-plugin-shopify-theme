@@ -28,11 +28,21 @@ describe('option validation', () => {
     },
   );
 
+  it('preserves the original URL parsing failure as the diagnostic cause', () => {
+    const root = fixture();
+    let failure: unknown;
+    try { normalizeOptions({ entries: { app: 'frontend/theme.ts' }, devOrigin: 'not a url' }, root); } catch (error) { failure = error; }
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).cause).toBeInstanceOf(TypeError);
+  });
+
   it('rejects missing, duplicate, and out-of-root entries', () => {
     const root = fixture();
-    expect(() => normalizeOptions({ entries: { app: 'missing.ts' } }, root)).toThrow(/does not exist/);
-    expect(() => normalizeOptions({ entries: { a: 'frontend/theme.ts', b: 'frontend/theme.ts' } }, root)).toThrow(/Duplicate/);
-    expect(() => normalizeOptions({ entries: { app: '../escape.ts' } }, root)).toThrow(/outside/);
+    mkdirSync(join(root, 'frontend/folder'));
+    expect(() => normalizeOptions({ entries: { app: 'missing.ts' } }, root)).toThrow(/Entry "app".*missing\.ts.*not found.*Create the file/);
+    expect(() => normalizeOptions({ entries: { app: 'frontend/folder' } }, root)).toThrow(/Entry "app".*not a file.*source file/);
+    expect(() => normalizeOptions({ entries: { a: 'frontend/theme.ts', b: 'frontend/theme.ts' } }, root)).toThrow(/Entry "b" duplicates.*distinct source/);
+    expect(() => normalizeOptions({ entries: { app: '../escape.ts' } }, root)).toThrow(/Entry "app".*outside theme root.*inside the theme/);
   });
 });
 
@@ -102,12 +112,15 @@ describe('Vite 8 configuration', () => {
   });
 
   it.each([
-    { publicDir: 'public' }, { input: { other: 'frontend/theme.ts' } }, { input: '' },
-    { build: { rolldownOptions: { input: 'frontend/theme.ts' } } },
-  ])('rejects plugin-owned configuration %#', (user) => {
+    [{ appType: 'spa' }, 'appType'], [{ base: '/' }, 'base'], [{ publicDir: 'public' }, 'publicDir'],
+    [{ input: { other: 'frontend/theme.ts' } }, 'input'], [{ input: '' }, 'input'],
+    [{ build: { outDir: 'dist' } }, 'build.outDir'], [{ build: { emptyOutDir: true } }, 'build.emptyOutDir'],
+    [{ build: { manifest: false } }, 'build.manifest'],
+    [{ build: { rolldownOptions: { input: 'frontend/theme.ts' } } }, 'build.rolldownOptions.input'],
+  ] as const)('rejects plugin-owned configuration %#', (user, key) => {
     const root = fixture();
     const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root }) as any;
-    expect(() => plugin.config({ root, ...user }, { command: 'build', mode: 'production' })).toThrow(/conflict|owned/);
+    expect(() => plugin.config({ root, ...user }, { command: 'build', mode: 'production' })).toThrow(new RegExp(`option "${key.replaceAll('.', '\\.') }".*Remove "${key.replaceAll('.', '\\.') }"`));
   });
 });
 

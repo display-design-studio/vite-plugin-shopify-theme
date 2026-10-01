@@ -76,6 +76,46 @@ describe('isolated builds', () => {
     for (const [file, content] of files) expect(readFileSync(join(root, 'assets', file), 'utf8')).toBe(content);
     expect(existsSync(lockPath(root))).toBe(false);
   });
+
+  it.each([
+    ['malformed JSON', '{not-json'],
+    ['invalid structure', JSON.stringify({ files: 'stale.js' })],
+    ['non-flat asset names', JSON.stringify({ files: ['nested/stale.js'] })],
+  ])('fails safely for %s in generated ownership state', async (_case, state) => {
+    const root = fixture();
+    const originalSnippet = readFileSync(snippetPath(root), 'utf8');
+    writeFileSync(statePath(root), state);
+    await expect(buildTheme(root)).rejects.toThrow(/(parse.*ownership state|ownership state.*invalid structure)/i);
+    expect(readFileSync(statePath(root), 'utf8')).toBe(state);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(originalSnippet);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+    expect(existsSync(lockPath(root))).toBe(false);
+    expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('reports invalid Vite manifest content and releases build ownership', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries, themeRoot: root }) as any;
+    plugin.config({ root }, { command: 'build', mode: 'production' });
+    plugin.configResolved({ command: 'build' });
+    plugin.buildStart();
+    writeFileSync(join(root, 'assets/vite-manifest.json'), JSON.stringify({ 'frontend/theme.ts': { file: 42 } }));
+    expect(() => plugin.writeBundle({}, {})).toThrow(/manifest entry.*frontend\/theme\.ts.*invalid.*clean Vite build/i);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('reports stale asset cleanup failures without committing new ownership state', async () => {
+    const root = fixture();
+    mkdirSync(join(root, 'assets/stale.js'));
+    const state = `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`;
+    writeFileSync(statePath(root), state);
+    await expect(buildTheme(root)).rejects.toThrow(/remove stale plugin-owned asset.*stale\.js.*ownership and permissions/i);
+    expect(readFileSync(statePath(root), 'utf8')).toBe(state);
+    expect(statSync(join(root, 'assets/stale.js')).isDirectory()).toBe(true);
+    expect(existsSync(lockPath(root))).toBe(false);
+    expect(readdirSync(join(root, 'snippets')).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
 });
 
 describe('development ownership and recovery', () => {
@@ -121,6 +161,33 @@ describe('development ownership and recovery', () => {
     const preserved = devServer(root);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe('manual edit\n');
     preserved.plugin.closeServer();
+  });
+
+  it.each([
+    ['missing metadata', undefined],
+    ['malformed metadata', '{not-json'],
+    ['invalid metadata', JSON.stringify({ token: 'incomplete' })],
+  ])('preserves a lock with %s and explains manual recovery', (_case, metadata) => {
+    const root = fixture();
+    mkdirSync(lockPath(root));
+    if (metadata !== undefined) writeFileSync(join(lockPath(root), 'owner.json'), metadata);
+    expect(() => devServer(root)).toThrow(/ownership.*(missing metadata|read or parsed|invalid structure).*confirming no Vite process.*remove the lock/i);
+    expect(existsSync(lockPath(root))).toBe(true);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
+  });
+
+  it('reports an atomic snippet write failure and releases startup ownership', () => {
+    const root = fixture();
+    writeFileSync(join(root, 'blocked'), 'not a directory');
+    const plugin = shopifyTheme({ entries, themeRoot: root, snippet: 'blocked/vite-tag.liquid' }) as any;
+    const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
+    plugin.configResolved({ command: 'serve' });
+    const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
+    httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
+    plugin.configureServer({ config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer });
+    expect(() => httpServer.emit('listening')).toThrow(/atomically write.*blocked\/vite-tag\.liquid.*parent directory is writable/i);
+    expect(existsSync(lockPath(root))).toBe(false);
+    expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 });
 

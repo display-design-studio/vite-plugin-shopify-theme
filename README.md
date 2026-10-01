@@ -33,6 +33,8 @@ Stylesheet entries may use Vite's supported `.css`, `.scss`, `.sass`, `.less`, `
 
 During `vite` development the snippet points at the resolved local server and marks all development scripts and styles for anonymous CORS. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
 
+Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
+
 The vendored [official Skeleton Theme playground](playground/skeleton-theme) includes a dependency-free Node orchestrator for Vite and `shopify theme dev`. See its [provenance and deliberate refresh procedure](playground/skeleton-theme/UPSTREAM.md).
 
 ## Commands
@@ -61,7 +63,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 - [x] Support the expected stylesheet extensions across entry handling and generated tags.
 - [x] Apply CORS attributes consistently to generated development tags.
-- [ ] Turn configuration and filesystem failures into actionable diagnostics.
+- [x] Turn configuration and filesystem failures into actionable diagnostics.
 - [ ] Keep startup logging concise and useful.
 - [ ] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
 - [ ] Document HMR troubleshooting for local and tunneled development.
