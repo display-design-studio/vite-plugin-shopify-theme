@@ -47,7 +47,7 @@ describe('manifest rendering', () => {
   it('walks imports recursively and deduplicates in deterministic dependency order', () => {
     expect(collectManifestTags(manifest, ['frontend/theme.ts'])).toEqual({
       preloads: ['deep-c.js', 'shared-b.js'],
-      styles: ['shared-b.css', 'theme-a.css'],
+      styles: ['theme-a.css', 'shared-b.css'],
       scripts: ['theme-a.js'],
     });
   });
@@ -61,6 +61,10 @@ describe('manifest rendering', () => {
     expect(snippet).toContain("{{ 'shared-b.js' | asset_url }}");
     expect(snippet.match(/shared-b\.css/g)).toHaveLength(1);
     expect(snippet).toContain("{{ 'theme-d.css' | asset_url }}");
+    const branch = snippet.slice(snippet.indexOf("{% when 'theme.ts' %}"), snippet.indexOf("{% when 'theme.css' %}"));
+    expect(branch.indexOf('theme-a.css')).toBeLessThan(branch.indexOf('shared-b.css'));
+    expect(branch.indexOf('shared-b.css')).toBeLessThan(branch.indexOf('theme-a.js'));
+    expect(branch.indexOf('theme-a.js')).toBeLessThan(branch.indexOf('deep-c.js'));
   });
 
   it('keeps runtime clients separate from entry renders in development', () => {
@@ -69,6 +73,30 @@ describe('manifest rendering', () => {
     expect(snippet).toContain('https://vite.example.test/@vite/client');
     expect(snippet).toContain('https://vite.example.test/@id/__x00__virtual:shopify-theme-hot-reload');
     expect(snippet).toContain('https://vite.example.test/frontend/theme.ts');
+  });
+});
+
+describe('Vite 8 configuration', () => {
+  it('owns publicDir and top-level input and uses server.ws for tunnels', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root, devOrigin: 'https://vite.example.test' }) as any;
+    const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
+    expect(contribution).toMatchObject({ publicDir: false, input: { app: join(root, 'frontend/theme.ts') } });
+    expect(contribution.build.rolldownOptions.input).toBeUndefined();
+    expect(contribution.server).toMatchObject({
+      cors: { origin: 'https://vite.example.test' }, allowedHosts: ['vite.example.test'],
+      ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },
+    });
+    expect(contribution.server.hmr).toBeUndefined();
+  });
+
+  it.each([
+    { publicDir: 'public' }, { input: { other: 'frontend/theme.ts' } }, { input: '' },
+    { build: { rolldownOptions: { input: 'frontend/theme.ts' } } },
+  ])('rejects plugin-owned configuration %#', (user) => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root }) as any;
+    expect(() => plugin.config({ root, ...user }, { command: 'build', mode: 'production' })).toThrow(/conflict|owned/);
   });
 });
 

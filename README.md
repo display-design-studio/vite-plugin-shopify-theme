@@ -27,22 +27,19 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 {% render 'vite-tag', entry: 'theme.ts' %}
 ```
 
-`entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. Builds use a relative base, emit flat Shopify-compatible assets, retain manually-authored assets, and delete only files recorded by the plugin's preceding build.
+`entries` is authoritative. Every source must exist within `themeRoot`, and both names and sources must be unique. The plugin owns Vite's top-level `input`, disables `publicDir`, uses a relative base, emits flat Shopify-compatible assets, retains manually-authored assets, and deletes only obsolete files recorded by the plugin's preceding successful build.
 
-During `vite` development the snippet points at the resolved local server. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures WSS, CORS, and the allowed host but never starts a tunnel. On a clean server shutdown it restores the production snippet unless another process or person edited the temporary snippet.
+During `vite` development the snippet points at the resolved local server. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
 
 The vendored [official Skeleton Theme playground](playground/skeleton-theme) includes a dependency-free Node orchestrator for Vite and `shopify theme dev`. See its [provenance and deliberate refresh procedure](playground/skeleton-theme/UPSTREAM.md).
 
 ## Commands
 
 ```sh
-npm run typecheck
-npm test
-npm run build
-npm run playground:build
-npm run pack:check
-npm --prefix playground/skeleton-theme exec shopify theme check
+npm run check
 ```
+
+Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`.
 
 ## Roadmap
 
@@ -50,12 +47,13 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 ### P0 — Correctness
 
-- [ ] Use isolated temporary fixtures for integration tests.
-- [ ] Protect generated state from concurrent build and development processes.
-- [ ] Write generated files atomically.
-- [ ] Cover startup, rebuild, shutdown, interruption, and recovery lifecycles.
-- [ ] Set `publicDir: false` for plugin-controlled builds.
-- [ ] Provide canonical check scripts for the complete validation sequence.
+- [x] Use isolated temporary fixtures for integration tests.
+- [x] Protect generated state from concurrent build and development processes.
+- [x] Write generated files atomically.
+- [x] Cover startup, rebuild, shutdown, interruption, and recovery lifecycles.
+- [x] Align with Vite 8 top-level `input`, `server.ws`, and backend tag ordering.
+- [x] Set `publicDir: false` for plugin-controlled builds.
+- [x] Provide canonical check scripts for the complete validation sequence.
 
 ### P1 — Developer experience
 

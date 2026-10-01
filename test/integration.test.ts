@@ -1,73 +1,136 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { resolve } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { build } from 'vite';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { shopifyTheme } from '../src/index.js';
 
-const themeRoot = resolve('playground/skeleton-theme');
-const critical = resolve(themeRoot, 'assets/critical.css');
-const marker = resolve(themeRoot, 'assets/manual-test.svg');
-const stale = resolve(themeRoot, 'assets/stale-plugin-file.js');
+const roots: string[] = [];
+afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
-describe('official Skeleton Theme build', () => {
-  afterAll(() => { if (existsSync(marker)) import('node:fs').then(({ unlinkSync }) => unlinkSync(marker)); });
+function fixture() {
+  const root = mkdtempSync(join(tmpdir(), 'shopify-theme-integration-'));
+  roots.push(root);
+  mkdirSync(join(root, 'frontend'), { recursive: true });
+  mkdirSync(join(root, 'snippets'));
+  mkdirSync(join(root, 'assets'));
+  writeFileSync(join(root, 'frontend/theme.ts'), "import './shared.css'; console.log('theme')");
+  writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: red }');
+  writeFileSync(join(root, 'frontend/shared.css'), '.shared { color: blue }');
+  writeFileSync(join(root, 'snippets/vite-tag.liquid'), 'original production snippet\n');
+  writeFileSync(join(root, 'assets/manual.svg'), '<svg/>');
+  return root;
+}
 
-  it('preserves manual assets and replaces only recorded generated assets', async () => {
-    const originalCritical = readFileSync(critical, 'utf8');
-    writeFileSync(marker, '<svg xmlns="http://www.w3.org/2000/svg"/>');
-    writeFileSync(stale, 'stale');
-    const statePath = resolve(themeRoot, '.vite-shopify-theme.json');
-    const prior = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')).files as string[] : [];
-    writeFileSync(statePath, JSON.stringify({ files: [...prior, 'stale-plugin-file.js'] }));
-    await build({ root: themeRoot, logLevel: 'silent' });
-    expect(readFileSync(critical, 'utf8')).toBe(originalCritical);
-    expect(existsSync(marker)).toBe(true);
-    expect(existsSync(stale)).toBe(false);
-    const state = JSON.parse(readFileSync(statePath, 'utf8')) as { files: string[] };
-    expect(state.files.some((file) => file.endsWith('.js'))).toBe(true);
-    expect(state.files.every((file) => !file.includes('/'))).toBe(true);
-    const snippet = readFileSync(resolve(themeRoot, 'snippets/vite-tag.liquid'), 'utf8');
-    expect(snippet).toContain("{% when 'theme.css' %}");
-    expect(snippet).toContain("{% when 'theme.ts' %}");
-    const manifest = JSON.parse(readFileSync(resolve(themeRoot, 'assets/vite-manifest.json'), 'utf8')) as Record<string, { file: string; isEntry?: boolean }>;
-    expect(Object.values(manifest).filter(({ isEntry }) => isEntry)).toHaveLength(2);
-    expect(Object.keys(manifest).filter((key) => key.endsWith('.css'))).toEqual(['frontend/entrypoints/theme.css']);
-    expect(Object.keys(manifest).some((key) => key.includes('modules/demo'))).toBe(true);
-    const cssEntry = manifest['frontend/entrypoints/theme.css'];
-    expect(cssEntry).toBeDefined();
-    const emittedCss = readFileSync(resolve(themeRoot, 'assets', cssEntry.file), 'utf8');
-    expect(emittedCss).toContain('.underline');
-    expect(emittedCss).toContain('--vite-demo-accent:#5c6ac4');
-    expect(emittedCss).toContain('[data-vite-demo]');
-    expect(emittedCss).not.toContain('box-sizing:border-box');
-    expect(snippet).toContain(`'${cssEntry.file}' | asset_url`);
-  }, 30_000);
+const entries = { 'theme.css': 'frontend/theme.css', 'theme.ts': 'frontend/theme.ts' };
+const statePath = (root: string) => join(root, '.vite-shopify-theme.json');
+const snippetPath = (root: string) => join(root, 'snippets/vite-tag.liquid');
+const lockPath = (root: string) => join(root, '.vite-shopify-theme.lock');
 
-  it('writes local and external dev snippets and restores cleanly', async () => {
-    const snippetPath = resolve(themeRoot, 'snippets/vite-tag.liquid');
-    const production = readFileSync(snippetPath, 'utf8');
-    const entries = { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.ts': 'frontend/entrypoints/theme.ts' };
-    const exercise = (devOrigin?: string) => {
-      const plugin = shopifyTheme({ entries, themeRoot, devOrigin }) as any;
-      const contribution = plugin.config({ root: themeRoot, server: {} }, { command: 'serve', mode: 'development' });
-      const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
-      httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
-      const server = { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer };
-      plugin.configureServer(server);
-      httpServer.emit('listening');
-      return { contribution, close: () => plugin.closeServer({ reason: 'close' }) };
-    };
-    const local = exercise();
-    expect(readFileSync(snippetPath, 'utf8')).toMatch(/http:\/\/(localhost|127\.0\.0\.1):\d+\/@vite\/client/);
-    local.close();
-    expect(readFileSync(snippetPath, 'utf8')).toBe(production);
+async function buildTheme(root: string, extraPlugins: any[] = []) {
+  return build({ configFile: false, root, logLevel: 'silent', plugins: [shopifyTheme({ entries, themeRoot: root }), ...extraPlugins] });
+}
 
-    const remote = exercise('https://vite.example.test');
-    expect(readFileSync(snippetPath, 'utf8')).toContain('https://vite.example.test/@vite/client');
-    expect(remote.contribution.server.hmr).toMatchObject({ protocol: 'wss', host: 'vite.example.test', clientPort: 443 });
-    expect(remote.contribution.server.allowedHosts).toContain('vite.example.test');
-    remote.close();
-    expect(readFileSync(snippetPath, 'utf8')).toBe(production);
-  }, 30_000);
+function devServer(root: string, devOrigin?: string) {
+  const plugin = shopifyTheme({ entries, themeRoot: root, devOrigin }) as any;
+  const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
+  plugin.configResolved({ command: 'serve' });
+  const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
+  httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
+  const server = { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer };
+  plugin.configureServer(server);
+  return { plugin, contribution, httpServer };
+}
+
+describe('isolated builds', () => {
+  it('preserves manual assets, removes only stale owned files, and writes deterministic atomic state', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'assets/stale.js'), 'stale');
+    writeFileSync(statePath(root), `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`);
+    chmodSync(snippetPath(root), 0o640);
+    await buildTheme(root);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+    expect(existsSync(join(root, 'assets/stale.js'))).toBe(false);
+    expect(statSync(snippetPath(root)).mode & 0o777).toBe(0o640);
+    const firstState = readFileSync(statePath(root), 'utf8');
+    const firstSnippet = readFileSync(snippetPath(root), 'utf8');
+    await buildTheme(root);
+    expect(readFileSync(statePath(root), 'utf8')).toBe(firstState);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(firstSnippet);
+    expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    expect(readdirSync(join(root, 'snippets')).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('keeps the last successful assets and snippet after a failed build', async () => {
+    const root = fixture();
+    await buildTheme(root);
+    const state = JSON.parse(readFileSync(statePath(root), 'utf8')) as { files: string[] };
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    const files = state.files.map((file) => [file, readFileSync(join(root, 'assets', file), 'utf8')] as const);
+    const fail = { name: 'intentional-failure', transform() { throw new Error('intentional build failure'); } };
+    await expect(buildTheme(root, [fail])).rejects.toThrow(/intentional build failure/);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(snippet);
+    for (const [file, content] of files) expect(readFileSync(join(root, 'assets', file), 'utf8')).toBe(content);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
 });
+
+describe('development ownership and recovery', () => {
+  it('owns before listening, restores on close, and supports restart', () => {
+    const root = fixture();
+    const original = readFileSync(snippetPath(root), 'utf8');
+    const first = devServer(root);
+    expect(existsSync(lockPath(root))).toBe(true);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+    first.httpServer.emit('listening');
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain('http://127.0.0.1:5173/@vite/client');
+    first.plugin.closeServer();
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+    expect(existsSync(lockPath(root))).toBe(false);
+
+    const restarted = devServer(root, 'https://vite.example.test');
+    restarted.httpServer.emit('listening');
+    expect(restarted.contribution.server.ws).toMatchObject({ protocol: 'wss', host: 'vite.example.test', clientPort: 443 });
+    restarted.httpServer.emit('close');
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+  });
+
+  it('rejects live development/build contention with an actionable diagnostic', async () => {
+    const root = fixture();
+    const active = devServer(root);
+    expect(() => devServer(root)).toThrow(new RegExp(`development process ${process.pid}`));
+    await expect(buildTheme(root)).rejects.toThrow(new RegExp(`development process ${process.pid}`));
+    active.plugin.closeServer();
+  });
+
+  it('recovers a dead owner only when the temporary snippet hash still matches', () => {
+    const root = fixture();
+    const original = readFileSync(snippetPath(root), 'utf8');
+    const temporary = 'stale development snippet\n';
+    writeFileSync(snippetPath(root), temporary);
+    writeStaleLock(root, temporary, original, 'dead');
+    const recovered = devServer(root);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+    recovered.plugin.closeServer();
+
+    writeFileSync(snippetPath(root), 'manual edit\n');
+    writeStaleLock(root, temporary, original, 'dead-again');
+    const preserved = devServer(root);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe('manual edit\n');
+    preserved.plugin.closeServer();
+  });
+});
+
+function writeStaleLock(root: string, temporary: string, original: string, token: string) {
+  mkdirSync(lockPath(root));
+  writeFileSync(join(lockPath(root), 'owner.json'), JSON.stringify({
+    token, pid: 999_999_999, mode: 'development', startedAt: '2020-01-01T00:00:00.000Z',
+    development: {
+      snippet: snippetPath(root), developmentHash: createHash('sha256').update(temporary).digest('hex'),
+      original: { exists: true, content: original },
+    },
+  }));
+}

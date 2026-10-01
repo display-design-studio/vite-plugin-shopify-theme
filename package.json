@@ -14,9 +14,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run test/integration.test.ts",
-    "playground:build": "npm run build && npm --prefix playground/skeleton-theme run build",
+    "playground:build": "npm --prefix playground/skeleton-theme run build",
     "playground:dev": "npm run build && npm --prefix playground/skeleton-theme run dev",
-    "pack:check": "node scripts/check-pack.mjs"
+    "pack:check": "node scripts/check-pack.mjs",
+    "theme:check": "npm --prefix playground/skeleton-theme exec -- shopify theme check --path playground/skeleton-theme",
+    "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check"
   },
   "peerDependencies": { "vite": "^8.0.0" },
   "devDependencies": {
