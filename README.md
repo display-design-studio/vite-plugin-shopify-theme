@@ -94,6 +94,10 @@ Vite writes flat, hashed JavaScript, CSS, and chunk files plus `assets/vite-mani
 
 Production snippets follow Vite's `build.modulePreload` setting. Shared imported JavaScript is emitted as module preloads unless `build.modulePreload` is `false`, and styles discovered through the manifest are emitted before scripts.
 
+The default recursive preload traversal is the recommended policy. Set `build.modulePreload: false` when the storefront should load chunks only through their JavaScript imports. Because Shopify renders Liquid rather than a Vite HTML entrypoint, an entry may optionally import `vite/modulepreload-polyfill` first when older-browser support for dynamic module preloading is required. No plugin option is needed for either policy.
+
+Vite gives emitted assets content-hashed filenames; Shopify's `asset_url` filter may then append its own `?v=` CDN version. These layers are complementary: the filename identifies the bundle content and Shopify controls its delivery cache. Do not append manual query strings to generated asset names or introduce a second versioning scheme.
+
 ### Local development with Shopify CLI
 
 Run Vite and Shopify CLI in separate terminals so Shopify serves Liquid while Vite serves frontend modules and HMR:
@@ -110,9 +114,66 @@ When Vite begins listening, the plugin temporarily replaces the configured snipp
 
 Build and development processes take exclusive ownership of a theme root. Run only one Vite build or server against a given theme at a time.
 
+### Vue and React sections
+
+Framework plugins compose normally with `shopifyTheme()`. Keep framework compilation and Fast Refresh in the official framework plugin; this plugin continues to own only explicit entries, Shopify asset output, and the generated Liquid tags.
+
+For Vue, register the Vue plugin and mount a separate application on every element emitted by a section:
+
+```ts
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite';
+import { shopifyTheme } from 'vite-plugin-shopify-theme';
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    shopifyTheme({ entries: { 'sections.js': 'frontend/sections.js' } }),
+  ],
+});
+```
+
+```ts
+import { createApp } from 'vue';
+import ProductSection from './ProductSection.vue';
+
+for (const element of document.querySelectorAll<HTMLElement>('[data-vue-product]')) {
+  createApp(ProductSection, { productId: element.dataset.productId }).mount(element);
+}
+```
+
+For React, import the preamble before React or application code. Vite cannot inject it into Shopify-rendered HTML, so this explicit import is required for Fast Refresh:
+
+```ts
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+import { shopifyTheme } from 'vite-plugin-shopify-theme';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    shopifyTheme({ entries: { 'sections.jsx': 'frontend/sections.jsx' } }),
+  ],
+});
+```
+
+```tsx
+import '@vitejs/plugin-react/preamble';
+import { createRoot } from 'react-dom/client';
+import ProductSection from './ProductSection';
+
+for (const element of document.querySelectorAll<HTMLElement>('[data-react-product]')) {
+  createRoot(element).render(<ProductSection productId={element.dataset.productId} />);
+}
+```
+
+Liquid remains responsible for rendering stable mount elements and their initial data. Mount each element independently because a section can appear multiple times and Shopify can replace section markup in the Theme Editor. Vite and the framework plugin handle module HMR or Fast Refresh; this plugin separately reloads the storefront for Liquid and JSON changes. Application code that must survive Theme Editor section insertion should also listen for Shopify's section lifecycle events and mount only unmounted elements.
+
 ### Theme Editor through an HTTPS tunnel
 
-The local storefront preview can load Vite directly over HTTP, but Shopify's HTTPS Theme Editor requires a reachable HTTPS origin for modules and WebSockets. Start a tunnel that forwards both HTTP and WebSocket traffic to Vite, then provide its public origin before Vite starts:
+The local storefront preview can load Vite directly over HTTP, but Shopify's HTTPS Theme Editor requires a publicly reachable HTTPS origin with a valid certificate. The tunnel must forward both HTTP requests and WebSocket upgrades to Vite. Prefer a stable origin; if it changes, restart Vite so the generated snippet, allowed host, CORS policy, and HMR client all receive the new value.
+
+With Cloudflare Tunnel, start the external tunnel process first:
 
 ```sh
 cloudflared tunnel --url http://127.0.0.1:5173
@@ -123,6 +184,18 @@ SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com npm run dev
 ```
 
 Pass that variable to `devOrigin` as shown in the initial configuration. The plugin sets Vite's CORS origin, allowed host, and secure WebSocket client endpoint. It does not create, monitor, or restart the tunnel. Restart Vite whenever the public URL changes.
+
+With ngrok, the equivalent flow is:
+
+```sh
+ngrok http 5173
+```
+
+```sh
+SHOPIFY_VITE_ORIGIN=https://example.ngrok-free.app npm run dev
+```
+
+Cloudflare Tunnel and ngrok are examples, not integrations or dependencies. Supply any provider's public origin through `devOrigin`; process startup, accounts, credentials, SDKs, URL discovery, and tunnel lifecycle stay outside the plugin.
 
 ### CSS and preprocessors
 
@@ -289,9 +362,10 @@ Compatibility checks install a freshly packed copy of the plugin and their reque
 VITE_VERSION=8.0.0 npm run compat:vite
 SHOPIFY_CLI_VERSION=3.94.3 npm run compat:shopify
 VITE_VERSION=8 SHOPIFY_CLI_VERSION=4 npm run compat
+npm run compat:frameworks
 ```
 
-Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`.
+Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`. The framework command checks Vue and React together; `compat:vue` and `compat:react` run their fixtures separately. All compatibility commands require network access and remain outside `npm run check`.
 
 ## Support matrix
 
@@ -300,6 +374,8 @@ Without an environment override, the Vite check uses `8` and the Shopify Theme C
 | Node.js | `^20.19.0 || >=22.12.0` | 20.19.0, 22, 24, and 26 |
 | Vite | `^8.0.0` peer dependency | Minimum 8.0.0 and latest 8.x on every tested Node version |
 | Shopify CLI | Not a dependency | Theme Check with 3.94.3 and latest 4.x on Node 24 |
+| Vue | Optional composition | Vue 3 with `@vitejs/plugin-vue` 6 and Vite 8 on Node 24 |
+| React | Optional composition | React 19 with `@vitejs/plugin-react` 6 and Vite 8 on Node 24 |
 
 Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are excluded because Vite 8 does not support them. Node 20 remains supported despite its EOL and will be retained until a future incompatible major release. Shopify CLI is used only for compatibility verification; consumers do not receive it as a dependency.
 
@@ -345,9 +421,9 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 ### P4 — Optional integrations
 
-- [ ] Evaluate React Refresh support without making React part of the core package contract.
-- [ ] Evaluate advanced preload policies and asset versioning behind explicit configuration.
-- [ ] Evaluate separately distributed tunnel adapters without adding tunnel ownership or dependencies to the core plugin.
+- [x] Verify Vue and React plugin composition, including an explicit React preamble for Fast Refresh, without making either framework part of the core package contract.
+- [x] Retain Vite's recursive module preloads (or `build.modulePreload: false`), optional entry polyfill, content hashes, and Shopify CDN versioning without adding another API or versioning layer.
+- [x] Document provider-agnostic external tunnels, including Cloudflare Tunnel and ngrok, while keeping processes, SDKs, credentials, and dependencies outside the plugin.
 
 ### Barrel reference
 

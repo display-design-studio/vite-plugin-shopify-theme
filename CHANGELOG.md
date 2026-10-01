@@ -2,6 +2,18 @@
 
 All notable changes to this package are documented here.
 
+## 0.2.1
+
+### Added
+
+- Documented official Vue and React composition recipes, including React Fast Refresh setup for Shopify-rendered HTML and independently mounted section applications.
+- Documented the supported module-preload, asset-versioning, and provider-agnostic HTTPS tunnel policies without adding runtime dependencies or public APIs.
+- Added network-dependent Vue 3 and React 19 compatibility fixtures covering production builds, generated manifests and snippets, development module serving, React's preamble, and snippet restoration.
+
+### Changed
+
+- Closed the P4 interoperability evaluation with framework composition, preload/versioning, and externally managed tunnel decisions that preserve the plugin's focused ownership boundary.
+
 ## 0.2.0
 
 ### Breaking changes

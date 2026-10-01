@@ -46,3 +46,20 @@ jobs:
       - run: npm run compat:shopify
         env:
           SHOPIFY_CLI_VERSION: ${{ matrix.shopify }}
+
+  frameworks:
+    name: Node 24 / ${{ matrix.framework }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [vue, react]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run compat:${{ matrix.framework }}

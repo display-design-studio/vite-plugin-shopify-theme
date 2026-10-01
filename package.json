@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-shopify-theme",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A focused Vite 8 integration for Shopify themes",
   "type": "module",
   "license": "MIT",
@@ -25,6 +25,9 @@
     "theme:check": "npm --prefix playground/skeleton-theme exec -- shopify theme check --path playground/skeleton-theme",
     "compat:vite": "node scripts/check-compatibility.mjs vite",
     "compat:shopify": "node scripts/check-compatibility.mjs shopify",
+    "compat:frameworks": "node scripts/check-frameworks.mjs all",
+    "compat:vue": "node scripts/check-frameworks.mjs vue",
+    "compat:react": "node scripts/check-frameworks.mjs react",
     "compat": "node scripts/check-compatibility.mjs all",
     "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check",
     "prepublishOnly": "npm run check"
