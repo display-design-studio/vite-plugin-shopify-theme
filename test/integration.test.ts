@@ -29,8 +29,8 @@ const statePath = (root: string) => join(root, '.vite-shopify-theme.json');
 const snippetPath = (root: string) => join(root, 'snippets/vite-tag.liquid');
 const lockPath = (root: string) => join(root, '.vite-shopify-theme.lock');
 
-async function buildTheme(root: string, extraPlugins: any[] = []) {
-  return build({ configFile: false, root, logLevel: 'silent', plugins: [shopifyTheme({ entries, themeRoot: root }), ...extraPlugins] });
+async function buildTheme(root: string, extraPlugins: any[] = [], buildOptions: Record<string, unknown> = {}) {
+  return build({ configFile: false, root, logLevel: 'silent', build: buildOptions, plugins: [shopifyTheme({ entries, themeRoot: root }), ...extraPlugins] });
 }
 
 function devServer(root: string, devOrigin?: string, configuredEntries: Record<string, string> = entries) {
@@ -47,6 +47,33 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
 }
 
 describe('isolated builds', () => {
+  it('aggregates explicit CSS entries without emitting a JavaScript shim', async () => {
+    const root = fixture();
+    await buildTheme(root, [], { cssCodeSplit: false, modulePreload: false });
+    const manifest = JSON.parse(readFileSync(join(root, 'assets/vite-manifest.json'), 'utf8')) as Record<string, { file: string }>;
+    expect(manifest['style.css']?.file).toMatch(/\.css$/);
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet.match(new RegExp(manifest['style.css'].file.replaceAll('.', '\\.'), 'g'))).toHaveLength(2);
+    expect(snippet).not.toContain('modulepreload');
+    const state = JSON.parse(readFileSync(statePath(root), 'utf8')) as { files: string[] };
+    expect(state.files.some((file) => file.startsWith('style-') && file.endsWith('.js'))).toBe(false);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+  });
+
+  it('reports a missing aggregated CSS manifest asset', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries, themeRoot: root }) as any;
+    plugin.config({ root, build: { cssCodeSplit: false } }, { command: 'build', mode: 'production' });
+    plugin.configResolved({ command: 'build', build: { modulePreload: true } });
+    plugin.buildStart();
+    writeFileSync(join(root, 'assets/vite-manifest.json'), JSON.stringify({
+      'frontend/theme.ts': { file: 'theme.js', isEntry: true },
+    }));
+    expect(() => plugin.writeBundle({}, {})).toThrow(/aggregated CSS asset.*manifest entry "style\.css".*clean build/i);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
   it('preserves manual assets, removes only stale owned files, and writes deterministic atomic state', async () => {
     const root = fixture();
     writeFileSync(join(root, 'assets/stale.js'), 'stale');

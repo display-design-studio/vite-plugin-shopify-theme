@@ -2,6 +2,11 @@ import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vite';
 
+export const CSS_BUNDLE_ENTRY = 'style.css';
+export const CSS_BUNDLE_ID = 'virtual:shopify-theme-css-bundle';
+export const RESOLVED_CSS_BUNDLE_ID = `\0${CSS_BUNDLE_ID}`;
+const STYLE_ENTRY_RE = /\.(?:css|scss|sass|less|styl|stylus)$/i;
+
 export interface ShopifyThemeOptions {
   entries: Record<string, string>;
   themeRoot?: string;
@@ -17,6 +22,8 @@ export interface NormalizedOptions {
 }
 
 export const VITE_MANIFEST = 'vite-manifest.json';
+
+export function isStyleEntry(path: string): boolean { return STYLE_ENTRY_RE.test(path); }
 
 export function inside(root: string, path: string): boolean {
   const rel = relative(root, path);
@@ -85,7 +92,7 @@ function configurationConflict(key: string, actual: unknown, expected: string): 
   return diagnostic(`Vite option "${key}" is ${displayValue(actual)}, but the Shopify theme plugin requires ${expected}. Remove "${key}" from the user config and let the plugin set it.`);
 }
 
-export function viteConfig(options: NormalizedOptions, user: UserConfig): UserConfig {
+export function viteConfig(options: NormalizedOptions, user: UserConfig, aggregateCss = false): UserConfig {
   if (user.appType !== undefined && user.appType !== 'custom') throw configurationConflict('appType', user.appType, '`"custom"`');
   if (user.base !== undefined && user.base !== './') throw configurationConflict('base', user.base, 'the relative base `"./"`');
   if (user.publicDir !== undefined && user.publicDir !== false) throw configurationConflict('publicDir', user.publicDir, '`false`');
@@ -99,15 +106,24 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig): UserCo
     allowedHosts: [options.devOrigin.hostname],
     ws: { protocol: 'wss' as const, host: options.devOrigin.hostname, clientPort: Number(options.devOrigin.port || 443) },
   } : undefined;
+  if (aggregateCss && CSS_BUNDLE_ENTRY in options.entries && !isStyleEntry(options.entries[CSS_BUNDLE_ENTRY])) {
+    throw diagnostic(`Liquid entry name "${CSS_BUNDLE_ENTRY}" is reserved for the aggregated stylesheet when build.cssCodeSplit is false. Rename that non-stylesheet entry and retry.`);
+  }
+  const buildEntries = aggregateCss
+    ? Object.fromEntries([
+      ...Object.entries(options.entries).filter(([, path]) => !isStyleEntry(path)),
+      [CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID],
+    ])
+    : { ...options.entries };
   return {
     root: options.themeRoot, appType: 'custom', base: './', publicDir: false,
-    input: { ...options.entries }, server,
+    input: buildEntries, server,
     build: {
       outDir: resolve(options.themeRoot, 'assets'), emptyOutDir: false, manifest: VITE_MANIFEST,
       // Vite 8.0 reads build inputs here; later Vite 8 releases read the
       // top-level input above. Supplying the same owned map in both places is
       // harmless after the migration and keeps the declared minimum working.
-      rolldownOptions: { input: { ...options.entries }, output: { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
+      rolldownOptions: { input: buildEntries, output: { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
     },
   };
 }

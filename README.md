@@ -31,6 +31,8 @@ Render the runtime once in `<head>`, render CSS entries in `<head>`, and scripts
 
 Stylesheet entries may use Vite's supported `.css`, `.scss`, `.sass`, `.less`, `.styl`, and `.stylus` extensions, including CSS Module variants. Install the corresponding Sass, Less, or Stylus preprocessor when using one.
 
+Production snippets follow Vite's `build.modulePreload` and `build.cssCodeSplit` settings. With `cssCodeSplit: false`, all CSS—including explicit stylesheet entries—is emitted as one shared asset and automatically included once in every entry branch; do not render a separate `style.css` entry.
+
 During `vite` development the snippet points at the resolved local server and marks all development scripts and styles for anonymous CORS. Once the development snippet is active, the plugin writes one concise readiness message through Vite's logger; Vite's `logLevel` and custom logger settings continue to apply. Set `SHOPIFY_VITE_ORIGIN=https://stable-tunnel.example` when a separately managed HTTPS tunnel is needed; the plugin configures `server.ws`, CORS, and the allowed host but never starts a tunnel. Build and development processes take exclusive ownership of a theme root. Interrupted development is recovered only when the generated snippet still has the recorded hash, so a manual edit is never overwritten.
 
 Configuration and filesystem failures identify the option or path involved and suggest a recovery action. Invalid ownership state or lock metadata fails safely instead of deleting assets or reclaiming uncertain ownership; inspect the reported file and confirm that no Vite process owns the theme before removing a lock manually.
@@ -111,7 +113,7 @@ The project invariants take precedence over every roadmap item: entries remain e
 
 ### P3 — Core compatibility and release readiness
 
-- [ ] Honor Vite build options that affect generated module preloads and CSS code splitting.
+- [x] Honor Vite build options that affect generated module preloads and CSS code splitting.
 - [ ] Support explicit `.pcss` and `.postcss` stylesheet entries.
 - [ ] Add an end-to-end fixture against a real Shopify development workflow.
 - [ ] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.

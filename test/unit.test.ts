@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { collectManifestTags, developmentSnippet, normalizeOptions, productionSnippet, shopifyTheme } from '../src/index.js';
+import { renderProductionSnippet } from '../src/snippets.js';
 import type { Manifest } from 'vite';
 
 function fixture() {
@@ -77,6 +78,24 @@ describe('manifest rendering', () => {
     expect(branch.indexOf('theme-a.js')).toBeLessThan(branch.indexOf('deep-c.js'));
   });
 
+  it('honors disabled module preloads without changing scripts or styles', () => {
+    const root = fixture();
+    const snippet = renderProductionSnippet(manifest, { 'theme.ts': join(root, 'frontend/theme.ts') }, root, { modulePreload: false });
+    expect(snippet).toContain("{{ 'theme-a.css' | asset_url }}");
+    expect(snippet).toContain("{{ 'theme-a.js' | asset_url }}");
+    expect(snippet).not.toContain('modulepreload');
+  });
+
+  it('includes aggregated CSS exactly once in every branch', () => {
+    const root = fixture();
+    const snippet = renderProductionSnippet(manifest, {
+      'theme.ts': join(root, 'frontend/theme.ts'), 'theme.css': join(root, 'frontend/theme.css'),
+    }, root, { modulePreload: true, aggregateCss: 'style-z.css' });
+    expect(snippet.match(/style-z\.css/g)).toHaveLength(2);
+    expect(snippet).not.toContain('theme-d.css');
+    for (const branch of snippet.split('{% when ').slice(1)) expect(branch.match(/style-z\.css/g)).toHaveLength(1);
+  });
+
   it('keeps runtime clients separate from entry renders in development', () => {
     const root = fixture();
     const snippet = developmentSnippet('https://vite.example.test', { app: join(root, 'frontend/theme.ts') }, root);
@@ -109,6 +128,23 @@ describe('Vite 8 configuration', () => {
       ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },
     });
     expect(contribution.server.hmr).toBeUndefined();
+  });
+
+  it('replaces direct stylesheet inputs with one virtual input only when CSS splitting is disabled', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries: { 'theme.css': 'frontend/theme.css', app: 'frontend/theme.ts' }, themeRoot: root }) as any;
+    const contribution = plugin.config({ root, build: { cssCodeSplit: false } }, { command: 'build', mode: 'production' });
+    expect(contribution.input).toEqual({ app: join(root, 'frontend/theme.ts'), 'style.css': 'virtual:shopify-theme-css-bundle' });
+    expect(plugin.resolveId('virtual:shopify-theme-css-bundle')).toBe('\0virtual:shopify-theme-css-bundle');
+    expect(plugin.load('\0virtual:shopify-theme-css-bundle')).toBe(`import ${JSON.stringify(join(root, 'frontend/theme.css'))};`);
+  });
+
+  it('leaves development inputs unchanged when the shared config disables CSS splitting', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries: { 'theme.css': 'frontend/theme.css', app: 'frontend/theme.ts' }, themeRoot: root }) as any;
+    const contribution = plugin.config({ root, build: { cssCodeSplit: false } }, { command: 'serve', mode: 'development' });
+    expect(contribution.input).toEqual({ 'theme.css': join(root, 'frontend/theme.css'), app: join(root, 'frontend/theme.ts') });
+    expect(plugin.resolveId('virtual:shopify-theme-css-bundle')).toBeUndefined();
   });
 
   it.each([

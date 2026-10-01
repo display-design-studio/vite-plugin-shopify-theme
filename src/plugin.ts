@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
-import { diagnostic, errorDetail, inside, normalizeOptions, VITE_MANIFEST, viteConfig } from './config.js';
+import { CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
-import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, productionSnippet, RESOLVED_HOT_RELOAD_CLIENT, sourceKey } from './snippets.js';
+import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, RESOLVED_HOT_RELOAD_CLIENT, sourceKey } from './snippets.js';
 
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
@@ -16,6 +16,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let exitHandler: (() => void) | undefined;
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
+  let cssCodeSplit = true;
   const restoreDevelopmentSnippet = () => {
     if (!developmentActive || !existsSync(options.snippet) || sha(readText(options.snippet, 'development snippet')) !== developmentHash) return;
     if (original?.exists) atomicWrite(options.snippet, original.content); else removeFile(options.snippet, 'temporary development snippet');
@@ -47,17 +48,32 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   return {
     name: 'vite-plugin-shopify-theme',
     enforce: 'pre',
-    resolveId(id) { if (id === HOT_RELOAD_CLIENT) return RESOLVED_HOT_RELOAD_CLIENT; },
-    load(id) { if (id === RESOLVED_HOT_RELOAD_CLIENT) return HOT_RELOAD_SOURCE; },
-    config(user) {
+    resolveId(id) {
+      if (id === HOT_RELOAD_CLIENT) return RESOLVED_HOT_RELOAD_CLIENT;
+      if (!cssCodeSplit && id === CSS_BUNDLE_ID) return RESOLVED_CSS_BUNDLE_ID;
+    },
+    load(id) {
+      if (id === RESOLVED_HOT_RELOAD_CLIENT) return HOT_RELOAD_SOURCE;
+      if (!cssCodeSplit && id === RESOLVED_CSS_BUNDLE_ID) {
+        return Object.values(options.entries).filter(isStyleEntry).map((path) => `import ${JSON.stringify(path)};`).join('\n');
+      }
+    },
+    config(user, environment) {
       options = normalizeOptions(raw, user.root ? resolve(user.root) : process.cwd());
-      return viteConfig(options, user);
+      cssCodeSplit = environment.command !== 'build' || user.build?.cssCodeSplit !== false;
+      return viteConfig(options, user, !cssCodeSplit);
     },
     configResolved(resolved) { config = resolved; },
     buildStart() {
       if (config.command !== 'build') return;
       owner = acquireLock(options.themeRoot, 'build');
       installProcessHandlers();
+    },
+    generateBundle(_output, bundle) {
+      if (config.command !== 'build' || cssCodeSplit) return;
+      for (const [file, output] of Object.entries(bundle)) {
+        if (output.type === 'chunk' && output.facadeModuleId === RESOLVED_CSS_BUNDLE_ID) delete bundle[file];
+      }
     },
     writeBundle(_output, bundle) {
       if (config.command !== 'build') return;
@@ -67,7 +83,14 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         const previous = existsSync(statePath) ? readOwnershipState(statePath) : { files: [] };
         const manifest = readManifest(resolve(assetsRoot, VITE_MANIFEST));
         const files = Object.keys(bundle).filter((file) => file !== VITE_MANIFEST).sort();
-        atomicWrite(options.snippet, productionSnippet(manifest, options.entries, options.themeRoot));
+        const aggregateCss = cssCodeSplit ? undefined : manifest[CSS_BUNDLE_ENTRY]?.file;
+        if (!cssCodeSplit && (!aggregateCss || !aggregateCss.endsWith('.css'))) {
+          throw diagnostic(`Vite did not generate the aggregated CSS asset expected at manifest entry "${CSS_BUNDLE_ENTRY}". Run a clean build and confirm that build.cssCodeSplit remains false.`);
+        }
+        atomicWrite(options.snippet, renderProductionSnippet(manifest, options.entries, options.themeRoot, {
+          modulePreload: config.build.modulePreload !== false,
+          aggregateCss,
+        }));
         const current = new Set(files);
         for (const file of previous.files) {
           const target = resolve(assetsRoot, file);
