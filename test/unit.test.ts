@@ -22,6 +22,18 @@ describe('option validation', () => {
     expect(value.devOrigin?.origin).toBe('https://theme.example.test');
   });
 
+  it.each(['theme', 'theme.ts', 'theme.min.js', 'theme_2', 'theme-dark.css', '9-theme'])('accepts Liquid-safe entry name %s', (name) => {
+    const root = fixture();
+    expect(normalizeOptions({ entries: { [name]: 'frontend/theme.ts' } }, root).entries[name]).toBe(join(root, 'frontend/theme.ts'));
+  });
+
+  it.each(['', "theme'", 'theme\njs', 'theme/js', 'theme\\js', 'theme js', '{{ theme }}', '{% theme %}', '.theme', '-theme', '_theme'])(
+    'rejects unsafe Liquid entry name %j', (name) => {
+      const root = fixture();
+      expect(() => normalizeOptions({ entries: { [name]: 'frontend/theme.ts' } }, root)).toThrow(/Liquid entry name.*invalid.*ASCII letters/);
+    },
+  );
+
   it.each(['http://example.com', 'https://user@example.com', 'https://example.com/path', 'not a url'])(
     'rejects malformed or unsafe origin %s', (devOrigin) => {
       const root = fixture();

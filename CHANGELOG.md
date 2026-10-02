@@ -12,6 +12,8 @@ All notable changes to this package are documented here.
 
 ### Changed
 
+- Renamed the public package to `@display-studio/vite-plugin-shopify-theme` and aligned its repository metadata with the `display-design-studio` GitHub organization.
+- Restricted Liquid-facing entry names to `[A-Za-z0-9][A-Za-z0-9._-]*` so generated case branches cannot be altered by quotes, whitespace, path separators, or Liquid syntax.
 - Closed the P4 interoperability evaluation with framework composition, preload/versioning, and externally managed tunnel decisions that preserve the plugin's focused ownership boundary.
 
 ## 0.2.0

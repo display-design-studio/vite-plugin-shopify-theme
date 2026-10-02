@@ -61,7 +61,7 @@ export function validateFiles(files) {
 }
 
 export function validateMetadata(manifest) {
-  strictEqual(manifest.name, 'vite-plugin-shopify-theme', 'package name must remain stable');
+  strictEqual(manifest.name, '@display-studio/vite-plugin-shopify-theme', 'package name differs');
   strictEqual(manifest.version, '0.2.1', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
@@ -72,14 +72,14 @@ export function validateMetadata(manifest) {
   deepStrictEqual(manifest.peerDependencies, { vite: '^8.0.0' }, 'Vite peer range differs');
   strictEqual('bin' in manifest, false, 'package must not publish executables');
   strictEqual('dependencies' in manifest, false, 'package must not declare runtime dependencies');
-  deepStrictEqual(manifest.publishConfig, { registry: 'https://registry.npmjs.org/' }, 'publish registry differs');
+  deepStrictEqual(manifest.publishConfig, { access: 'public', registry: 'https://registry.npmjs.org/' }, 'publish configuration differs');
   strictEqual(manifest.scripts?.prepublishOnly, 'npm run check', 'prepublishOnly guard differs');
   deepStrictEqual(manifest.repository, {
     type: 'git',
-    url: 'git+https://github.com/LucaArgentieri/vite-plugin-shopify-theme.git',
+    url: 'git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git',
   }, 'repository metadata differs');
-  strictEqual(manifest.homepage, 'https://github.com/LucaArgentieri/vite-plugin-shopify-theme#readme', 'homepage metadata differs');
-  deepStrictEqual(manifest.bugs, { url: 'https://github.com/LucaArgentieri/vite-plugin-shopify-theme/issues' }, 'issue tracker metadata differs');
+  strictEqual(manifest.homepage, 'https://github.com/display-design-studio/vite-plugin-shopify-theme#readme', 'homepage metadata differs');
+  deepStrictEqual(manifest.bugs, { url: 'https://github.com/display-design-studio/vite-plugin-shopify-theme/issues' }, 'issue tracker metadata differs');
   for (const keyword of ['vite-plugin', 'shopify', 'liquid', 'hmr']) {
     strictEqual(manifest.keywords?.includes(keyword), true, `required keyword ${JSON.stringify(keyword)} is missing`);
   }
@@ -143,7 +143,7 @@ export async function checkPackage() {
       env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
     }));
 
-    const packageDirectory = join(consumer, 'node_modules', 'vite-plugin-shopify-theme');
+    const packageDirectory = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme');
     stage('metadata', () => {
       if (!existsSync(packageDirectory)) throw new Error('installed package is missing');
       validateMetadata(JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8')));

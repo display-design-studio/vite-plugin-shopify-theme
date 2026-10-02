@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "vite-plugin-shopify-theme",
+      "name": "@display-studio/vite-plugin-shopify-theme",
       "devDependencies": {
         "@types/node": "^24.0.0",
         "typescript": "^6.0.3",

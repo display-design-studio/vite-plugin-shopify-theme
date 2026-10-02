@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { shopifyTheme } from 'vite-plugin-shopify-theme';
+import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
 
 export default defineConfig({
   plugins: [shopifyTheme({

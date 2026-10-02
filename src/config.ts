@@ -6,6 +6,7 @@ export const CSS_BUNDLE_ENTRY = 'style.css';
 export const CSS_BUNDLE_ID = 'virtual:shopify-theme-css-bundle';
 export const RESOLVED_CSS_BUNDLE_ID = `\0${CSS_BUNDLE_ID}`;
 const STYLE_ENTRY_RE = /\.(?:css|pcss|postcss|scss|sass|less|styl|stylus)$/i;
+const LIQUID_ENTRY_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export interface ShopifyThemeOptions {
   entries: Record<string, string>;
@@ -61,8 +62,8 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   const entries: Record<string, string> = {};
   const sources = new Set<string>();
   for (const [name, source] of Object.entries(options.entries)) {
-    if (!name || name.includes('/') || name.includes('\\') || name === '.' || name === '..') {
-      throw diagnostic(`Liquid entry name ${JSON.stringify(name)} is invalid. Use a non-empty flat name without slashes, such as "theme.ts".`);
+    if (!LIQUID_ENTRY_NAME_RE.test(name)) {
+      throw diagnostic(`Liquid entry name ${JSON.stringify(name)} is invalid. Use only ASCII letters, digits, dots, underscores, and hyphens, starting with a letter or digit, such as "theme.ts".`);
     }
     if (typeof source !== 'string' || source.length === 0) throw diagnostic(`Entry "${name}" must map to a non-empty source path string.`);
     const absolute = resolve(themeRoot, source);

@@ -1,12 +1,12 @@
 {
-  "name": "vite-plugin-shopify-theme",
+  "name": "@display-studio/vite-plugin-shopify-theme",
   "version": "0.2.1",
   "description": "A focused Vite 8 integration for Shopify themes",
   "type": "module",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/LucaArgentieri/vite-plugin-shopify-theme.git" },
-  "homepage": "https://github.com/LucaArgentieri/vite-plugin-shopify-theme#readme",
-  "bugs": { "url": "https://github.com/LucaArgentieri/vite-plugin-shopify-theme/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git" },
+  "homepage": "https://github.com/display-design-studio/vite-plugin-shopify-theme#readme",
+  "bugs": { "url": "https://github.com/display-design-studio/vite-plugin-shopify-theme/issues" },
   "keywords": ["vite-plugin", "vite", "shopify", "liquid", "hmr"],
   "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
   "main": "./dist/index.js",
@@ -32,7 +32,7 @@
     "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check",
     "prepublishOnly": "npm run check"
   },
-  "publishConfig": { "registry": "https://registry.npmjs.org/" },
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
   "peerDependencies": { "vite": "^8.0.0" },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -1,4 +1,4 @@
-# vite-plugin-shopify-theme
+# @display-studio/vite-plugin-shopify-theme
 
 A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries into a Shopify theme's `assets` directory and generates a Liquid snippet for production and development.
 
@@ -11,14 +11,14 @@ A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries in
 Install Vite and the plugin as development dependencies:
 
 ```sh
-npm install --save-dev vite vite-plugin-shopify-theme
+npm install --save-dev vite @display-studio/vite-plugin-shopify-theme
 ```
 
 Create `vite.config.ts` in the theme root. Every frontend entry is explicit: the key is the name passed from Liquid and the value is its source path relative to the theme root.
 
 ```ts
 import { defineConfig } from 'vite';
-import { shopifyTheme } from 'vite-plugin-shopify-theme';
+import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
 
 export default defineConfig({
   plugins: [shopifyTheme({
@@ -47,7 +47,7 @@ The entryless render emits nothing in production, so it is safe to leave it in t
 
 | Option | Type | Default | Contract and behavior |
 | --- | --- | --- | --- |
-| `entries` | `Record<string, string>` | Required | A non-empty map of Liquid entry names to source files. Names must be non-empty, flat, and unique; sources must be distinct existing files inside `themeRoot`. This map is authoritative and is not supplemented by entry discovery. |
+| `entries` | `Record<string, string>` | Required | A non-empty map of Liquid entry names to source files. Names must match `[A-Za-z0-9][A-Za-z0-9._-]*`; sources must be distinct existing files inside `themeRoot`. This map is authoritative and is not supplemented by entry discovery. |
 | `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
 | `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid file, resolved relative to and required to remain inside `themeRoot`. Render the corresponding snippet name from Liquid. The file is generated on build and temporarily replaced during development. |
 | `devOrigin` | `string` | The listening Vite server origin | Public origin used in development tags. It must be an absolute HTTPS origin with no credentials, path, query, or hash. Use it for a separately managed tunnel; the plugin configures Vite for that origin but does not start the tunnel. |
@@ -123,7 +123,7 @@ For Vue, register the Vue plugin and mount a separate application on every eleme
 ```ts
 import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
-import { shopifyTheme } from 'vite-plugin-shopify-theme';
+import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
 
 export default defineConfig({
   plugins: [
@@ -147,7 +147,7 @@ For React, import the preamble before React or application code. Vite cannot inj
 ```ts
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { shopifyTheme } from 'vite-plugin-shopify-theme';
+import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
 
 export default defineConfig({
   plugins: [
@@ -284,7 +284,7 @@ Version 0.2.0 replaces the contract published in 0.1.0. Update configuration and
    {% render 'vite-tag', entry: 'theme.ts' %}
    ```
 
-`shopifyTheme()` now returns a single Vite plugin. The package is ESM-only, has no runtime dependencies, and supports imports only from `vite-plugin-shopify-theme`; remove CommonJS loading and imports from package internals.
+`shopifyTheme()` now returns a single Vite plugin. The package is ESM-only, has no runtime dependencies, and supports imports only from `@display-studio/vite-plugin-shopify-theme`; remove CommonJS loading and imports from package internals.
 
 ## Troubleshooting
 
@@ -308,9 +308,9 @@ During development all generated script and stylesheet tags use anonymous CORS. 
 
 ## Public API
 
-The package has one supported entrypoint: `vite-plugin-shopify-theme`. It exports `shopifyTheme` both as the default export and as a named export, plus the named utilities `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, and `productionSnippet`. Its public TypeScript types are `ShopifyThemeOptions`, `NormalizedOptions`, and `ManifestTags`.
+The package has one supported entrypoint: `@display-studio/vite-plugin-shopify-theme`. It exports `shopifyTheme` both as the default export and as a named export, plus the named utilities `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, and `productionSnippet`. Its public TypeScript types are `ShopifyThemeOptions`, `NormalizedOptions`, and `ManifestTags`.
 
-Files below `dist/*`, internal modules, and undeclared package subpaths are implementation details, not supported API. Import all public values and types from `vite-plugin-shopify-theme`.
+Files below `dist/*`, internal modules, and undeclared package subpaths are implementation details, not supported API. Import all public values and types from `@display-studio/vite-plugin-shopify-theme`.
 
 ## HMR troubleshooting
 
