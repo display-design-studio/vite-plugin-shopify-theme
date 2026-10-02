@@ -1,5 +1,11 @@
 # @display-studio/vite-plugin-shopify-theme
 
+[![npm version](https://img.shields.io/npm/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
+[![CI](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml)
+[![Compatibility](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/compatibility.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/compatibility.yml)
+[![Node.js](https://img.shields.io/node/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
+[![License: MIT](https://img.shields.io/npm/l/@display-studio/vite-plugin-shopify-theme)](LICENSE)
+
 A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries into a Shopify theme's `assets` directory and generates a Liquid snippet for production and development.
 
 ## Requirements and installation
@@ -383,50 +389,6 @@ Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are 
 
 ## Roadmap
 
-The project invariants take precedence over every roadmap item: entries remain explicit, the package keeps zero runtime dependencies, generated output stays deterministic, cleanup never broadens beyond plugin-owned assets, and the public API does not receive breaking changes.
+The completed `0.2.x` roadmap and upcoming work are tracked in [Roadmap: adoption, developer experience, and path to 1.0](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/1). The tracking issue is the canonical checklist and links to focused implementation issues as work begins.
 
-### P0 — Correctness
-
-- [x] Use isolated temporary fixtures for integration tests.
-- [x] Protect generated state from concurrent build and development processes.
-- [x] Write generated files atomically.
-- [x] Cover startup, rebuild, shutdown, interruption, and recovery lifecycles.
-- [x] Align with Vite 8 top-level `input`, `server.ws`, and backend tag ordering.
-- [x] Set `publicDir: false` for plugin-controlled builds.
-- [x] Provide canonical check scripts for the complete validation sequence.
-
-### P1 — Developer experience
-
-- [x] Support the expected stylesheet extensions across entry handling and generated tags.
-- [x] Apply CORS attributes consistently to generated development tags.
-- [x] Turn configuration and filesystem failures into actionable diagnostics.
-- [x] Keep startup logging concise and useful.
-- [x] Warn clearly about tunnel ownership, stability, and HTTPS requirements.
-- [x] Document HMR troubleshooting for local and tunneled development.
-- [x] Add repository agent instructions for contributors and automation.
-
-### P2 — Maintainability
-
-- [x] Separate internal responsibilities for configuration, asset ownership, snippet rendering, and lifecycle state.
-- [x] Expand compatibility fixtures across supported Node, Vite, and Shopify CLI versions.
-- [x] Strengthen package-content and install validation.
-- [x] Document the supported package exports.
-- [x] Publish and maintain a support matrix.
-
-### P3 — Core compatibility and release readiness
-
-- [x] Honor Vite build options that affect generated module preloads and CSS code splitting.
-- [x] Support explicit `.pcss` and `.postcss` stylesheet entries.
-- [x] Add an end-to-end fixture against a real Shopify development workflow.
-- [x] Expand developer-experience documentation for configuration, troubleshooting, and common workflows.
-- [x] Complete release-readiness checks, documentation, and packaging validation.
-
-### P4 — Optional integrations
-
-- [x] Verify Vue and React plugin composition, including an explicit React preamble for Fast Refresh, without making either framework part of the core package contract.
-- [x] Retain Vite's recursive module preloads (or `build.modulePreload: false`), optional entry polyfill, content hashes, and Shopify CDN versioning without adding another API or versioning layer.
-- [x] Document provider-agnostic external tunnels, including Cloudflare Tunnel and ngrok, while keeping processes, SDKs, credentials, and dependencies outside the plugin.
-
-### Barrel reference
-
-Adopt the reference project's useful discipline around explicit entry configuration, deterministic manifests, focused lifecycle handling, actionable diagnostics, and realistic integration fixtures. Automatic entry discovery and core tunnel management remain intentionally excluded: explicit entrypoints and zero runtime dependencies are product constraints, not temporary omissions. Framework-specific helpers, tunnel adapters, and broader asset orchestration may be evaluated only as optional integrations that do not weaken the invariants above.
+The project invariants take precedence over every roadmap item: entries remain explicit, the package keeps zero runtime dependencies, generated output stays deterministic, cleanup never broadens beyond plugin-owned assets, and managed tunnels, Shopify deployment, and an internal CLI remain outside the core package.
