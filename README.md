@@ -1,10 +1,8 @@
 # @display-studio/vite-plugin-shopify-theme
 
-[![npm version](https://img.shields.io/npm/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
-[![CI](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml)
-[![Compatibility](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/compatibility.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/compatibility.yml)
-[![Node.js](https://img.shields.io/node/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
-[![License: MIT](https://img.shields.io/npm/l/@display-studio/vite-plugin-shopify-theme)](LICENSE)
+[![npm version][npm-version-src]][npm-version-href]
+[![npm downloads][npm-downloads-src]][npm-downloads-href]
+[![Build][build-src]][build-href]
 
 A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries into a Shopify theme's `assets` directory and generates a Liquid snippet for production and development.
 
@@ -484,3 +482,12 @@ Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are 
 The completed `0.2.x` roadmap and upcoming work are tracked in [Roadmap: adoption, developer experience, and path to 1.0](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/1). The tracking issue is the canonical checklist and links to focused implementation issues as work begins.
 
 The project invariants take precedence over every roadmap item: entries remain explicit, the package keeps zero runtime dependencies, generated output stays deterministic, cleanup never broadens beyond plugin-owned assets, and managed tunnels, Shopify deployment, and an internal CLI remain outside the core package.
+
+<!-- Badges -->
+
+[npm-version-src]: https://npmx.dev/api/registry/badge/version/@display-studio/vite-plugin-shopify-theme
+[npm-version-href]: https://npmx.dev/package/@display-studio/vite-plugin-shopify-theme
+[npm-downloads-src]: https://npmx.dev/api/registry/badge/downloads/@display-studio/vite-plugin-shopify-theme
+[npm-downloads-href]: https://npmx.dev/package/@display-studio/vite-plugin-shopify-theme
+[build-src]: https://img.shields.io/github/actions/workflow/status/display-design-studio/vite-plugin-shopify-theme/ci.yml?branch=main&style=flat-square&label=build
+[build-href]: https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml
