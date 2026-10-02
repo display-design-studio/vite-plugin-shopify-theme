@@ -8,19 +8,22 @@
 
 A zero-runtime-dependency Vite 8 plugin that builds explicit frontend entries into a Shopify theme's `assets` directory and generates a Liquid snippet for production and development.
 
-## Requirements and installation
+## Quick start
 
-- Node.js `^20.19.0 || >=22.12.0`.
-- Vite `^8.0.0` in the consuming project.
-- A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI is useful for local theme previews, but is not a plugin dependency.
-
-Install Vite and the plugin as development dependencies:
+From an existing Shopify theme root, install Vite and the plugin:
 
 ```sh
 npm install --save-dev vite @display-studio/vite-plugin-shopify-theme
 ```
 
-Create `vite.config.ts` in the theme root. Every frontend entry is explicit: the key is the name passed from Liquid and the value is its source path relative to the theme root.
+Create the two source files used below:
+
+```text
+frontend/entrypoints/theme.css
+frontend/entrypoints/theme.ts
+```
+
+Create `vite.config.ts`. Every entry is explicit: the key is passed from Liquid and the value is its source path relative to the theme root.
 
 ```ts
 import { defineConfig } from 'vite';
@@ -32,22 +35,64 @@ export default defineConfig({
       'theme.css': 'frontend/entrypoints/theme.css',
       'theme.ts': 'frontend/entrypoints/theme.ts',
     },
-    themeRoot: '.',
-    snippet: 'snippets/vite-tag.liquid',
-    devOrigin: process.env.SHOPIFY_VITE_ORIGIN,
   })],
 });
 ```
 
-Render the snippet without an entry once in `<head>` to install the Vite client during development. Render CSS entries in `<head>` and JavaScript entries where the theme should load them:
+Render the generated snippet in `layout/theme.liquid`. The entryless render installs the Vite clients only during development:
 
 ```liquid
-{% render 'vite-tag' %}
-{% render 'vite-tag', entry: 'theme.css' %}
-{% render 'vite-tag', entry: 'theme.ts' %}
+<head>
+  {% render 'vite-tag' %}
+  {% render 'vite-tag', entry: 'theme.css' %}
+</head>
+<body>
+  {{ content_for_layout }}
+  {% render 'vite-tag', entry: 'theme.ts' %}
+</body>
 ```
 
-The entryless render emits nothing in production, so it is safe to leave it in the layout.
+Add the scripts and build once to generate `snippets/vite-tag.liquid` and the production assets:
+
+```json
+{
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  }
+}
+```
+
+```sh
+npm run build
+```
+
+For local development, run `npm run dev` and `shopify theme dev` in separate terminals. See [Development modes](#development-modes) before using Shopify's hosted Theme Editor.
+
+Runnable [Vanilla, Vue, and React examples](examples) use the same layout and build contract.
+
+## Requirements
+
+- Node.js `^20.19.0 || >=22.12.0`.
+- Vite `^8.0.0` in the consuming project.
+- A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI is useful for local theme previews, but is not a plugin dependency.
+
+The entryless render emits nothing in production, so it is safe to leave it in the layout. Use `themeRoot`, `snippet`, and `devOrigin` only when their non-default behavior is needed.
+
+## Why this plugin?
+
+A hand-written Vite configuration can emit files into `assets`, but it must also keep Liquid tags synchronized with Vite's manifest and safely coordinate development and production state. This plugin provides that Shopify-specific lifecycle while leaving compilation to Vite.
+
+| Concern | Manual Vite integration | This plugin |
+| --- | --- | --- |
+| Entry selection | Custom Rollup/Rolldown configuration | Explicit Liquid name/source map |
+| Production Liquid | Custom manifest parsing | Deterministic generated snippet |
+| Development | Manually maintained Vite and HMR tags | Temporary snippet with Vite HMR and theme reload |
+| Stale assets | Custom cleanup, often broad | Removes only previously recorded plugin-owned files |
+| Concurrent processes | Project-specific coordination | Theme-root lock and crash recovery |
+| Runtime cost | Depends on the implementation | Zero runtime dependencies |
+
+The package is intentionally narrow: it does not discover entries, run Shopify CLI, manage tunnels, deploy themes, or replace framework plugins.
 
 ## Configuration
 
@@ -104,7 +149,9 @@ The default recursive preload traversal is the recommended policy. Set `build.mo
 
 Vite gives emitted assets content-hashed filenames; Shopify's `asset_url` filter may then append its own `?v=` CDN version. These layers are complementary: the filename identifies the bundle content and Shopify controls its delivery cache. Do not append manual query strings to generated asset names or introduce a second versioning scheme.
 
-### Local development with Shopify CLI
+## Development modes
+
+### Local storefront preview
 
 Run Vite and Shopify CLI in separate terminals so Shopify serves Liquid while Vite serves frontend modules and HMR:
 
@@ -119,6 +166,51 @@ shopify theme dev
 When Vite begins listening, the plugin temporarily replaces the configured snippet with tags for `@vite/client`, its theme-reload client, and each explicit entry. Changes to Liquid and JSON files inside the theme trigger a storefront reload. On normal shutdown, the prior snippet is restored (or the temporary file is removed if none existed).
 
 Build and development processes take exclusive ownership of a theme root. Run only one Vite build or server against a given theme at a time.
+
+This mode uses Vite's local HTTP origin and is the shortest feedback loop. Open the storefront URL printed by `shopify theme dev`; do not use this mode for the hosted Theme Editor iframe.
+
+### Hosted Theme Editor
+
+Shopify serves the Theme Editor over HTTPS. Browsers can block the local HTTP modules and WebSocket used by Vite when they are loaded inside that HTTPS iframe. A working local storefront preview therefore does not imply that the Theme Editor can reach Vite.
+
+To develop inside the Theme Editor, expose Vite through a separately managed HTTPS tunnel, set its public origin as `devOrigin`, and restart Vite whenever that origin changes. For production-like verification without HMR, run `npm run build` and preview the generated Shopify assets instead.
+
+### External HTTPS tunnel
+
+The tunnel must provide a publicly reachable HTTPS origin with a valid certificate and forward both HTTP requests and WebSocket upgrades to Vite. Prefer a stable origin because the generated snippet, allowed host, CORS policy, and HMR client are resolved when Vite starts.
+
+Start the external tunnel before Vite. With Cloudflare Tunnel:
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:5173
+```
+
+```sh
+SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com npm run dev
+```
+
+Pass the variable into the plugin explicitly:
+
+```ts
+shopifyTheme({
+  entries: {
+    'theme.css': 'frontend/entrypoints/theme.css',
+    'theme.ts': 'frontend/entrypoints/theme.ts',
+  },
+  devOrigin: process.env.SHOPIFY_VITE_ORIGIN,
+})
+```
+
+With ngrok, use the same order:
+
+```sh
+ngrok http 5173
+SHOPIFY_VITE_ORIGIN=https://example.ngrok-free.app npm run dev
+```
+
+Cloudflare Tunnel and ngrok are examples, not integrations or dependencies. The plugin configures Vite for the supplied origin but does not discover URLs, start processes, manage credentials, or keep tunnels alive.
+
+## Framework recipes
 
 ### Vue and React sections
 
@@ -175,33 +267,7 @@ for (const element of document.querySelectorAll<HTMLElement>('[data-react-produc
 
 Liquid remains responsible for rendering stable mount elements and their initial data. Mount each element independently because a section can appear multiple times and Shopify can replace section markup in the Theme Editor. Vite and the framework plugin handle module HMR or Fast Refresh; this plugin separately reloads the storefront for Liquid and JSON changes. Application code that must survive Theme Editor section insertion should also listen for Shopify's section lifecycle events and mount only unmounted elements.
 
-### Theme Editor through an HTTPS tunnel
-
-The local storefront preview can load Vite directly over HTTP, but Shopify's HTTPS Theme Editor requires a publicly reachable HTTPS origin with a valid certificate. The tunnel must forward both HTTP requests and WebSocket upgrades to Vite. Prefer a stable origin; if it changes, restart Vite so the generated snippet, allowed host, CORS policy, and HMR client all receive the new value.
-
-With Cloudflare Tunnel, start the external tunnel process first:
-
-```sh
-cloudflared tunnel --url http://127.0.0.1:5173
-```
-
-```sh
-SHOPIFY_VITE_ORIGIN=https://example.trycloudflare.com npm run dev
-```
-
-Pass that variable to `devOrigin` as shown in the initial configuration. The plugin sets Vite's CORS origin, allowed host, and secure WebSocket client endpoint. It does not create, monitor, or restart the tunnel. Restart Vite whenever the public URL changes.
-
-With ngrok, the equivalent flow is:
-
-```sh
-ngrok http 5173
-```
-
-```sh
-SHOPIFY_VITE_ORIGIN=https://example.ngrok-free.app npm run dev
-```
-
-Cloudflare Tunnel and ngrok are examples, not integrations or dependencies. Supply any provider's public origin through `devOrigin`; process startup, accounts, credentials, SDKs, URL discovery, and tunnel lifecycle stay outside the plugin.
+## Advanced workflows
 
 ### CSS and preprocessors
 
@@ -244,6 +310,32 @@ Then render the custom snippet name:
 ```
 
 Paths are resolved from Vite's configured root when one is supplied, otherwise from the process working directory. Avoid also setting Vite `root` when a direct `themeRoot` path is clearer.
+
+### Theme App Extensions
+
+A [Theme App Extension](https://shopify.dev/docs/apps/build/online-store/theme-app-extensions/configuration) has its own `assets`, `blocks`, `snippets`, and `locales` directories. The plugin can build against that extension directory when its entry sources also live inside the same root:
+
+```ts
+shopifyTheme({
+  themeRoot: 'extensions/product-widget',
+  entries: {
+    'widget.css': 'assets/widget.source.css',
+    'widget.js': 'assets/widget.source.js',
+  },
+})
+```
+
+Render the generated snippet from an app block or app embed block:
+
+```liquid
+{% render 'vite-tag', entry: 'widget.css' %}
+<div data-product-widget></div>
+{% render 'vite-tag', entry: 'widget.js' %}
+```
+
+Do not also declare those bundles through the block schema's `javascript` or `stylesheet` attributes: those attributes expect fixed asset filenames, while the generated snippet resolves Vite's hashed filenames through `asset_url`. Source files placed in `assets` remain extension assets, so use browser-ready JavaScript and CSS for this direct layout. Projects that keep TypeScript or framework sources outside the deployable extension need a separate staging/copy step owned by the app repository; this plugin deliberately does not copy arbitrary source trees or deploy extensions.
+
+Run `vite build` before `shopify app build` or `shopify app deploy`, commit or package the generated extension assets according to the app's release policy, and let Shopify CLI validate the result. Shopify currently enforces a 10 MB total extension limit and documents suggested compressed limits of 100 KB for directly referenced CSS and 10 KB for directly referenced JavaScript. Development still follows the modes above: Shopify CLI owns the app-extension preview, while Vite and any HTTPS tunnel remain separate processes.
 
 ## Why Vite-only
 

@@ -1,0 +1,63 @@
+name: Bug report
+description: Report reproducible incorrect behavior in the plugin
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include Shopify credentials, private preview URLs, or customer data. Report security issues through the private process in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: 0.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Node.js, Vite, Shopify CLI (if relevant), operating system, and package-manager versions.
+      placeholder: Node 24, Vite 8.3.1, Shopify CLI 4.x, macOS, npm 11
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal configuration and theme structure
+      description: Remove secrets and include only the entries and files needed to reproduce the problem.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide a repository link or exact commands and steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and logs
+      description: Paste relevant sanitized diagnostics and stack traces.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I removed all credentials, private URLs, and customer data.
+          required: true
+        - label: This is not a private security report.
+          required: true

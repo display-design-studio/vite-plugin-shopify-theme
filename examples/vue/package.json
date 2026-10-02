@@ -1,0 +1,16 @@
+{
+  "name": "vite-shopify-theme-example-vue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@display-studio/vite-plugin-shopify-theme": "file:../..",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1",
+    "vue": "^3.5.0"
+  }
+}

@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="{{ request.locale.iso_code }}">
+  <head>
+    {{ content_for_header }}
+    {% render 'vite-tag' %}
+  </head>
+  <body>
+    {{ content_for_layout }}
+    {% render 'vite-tag', entry: 'section.js' %}
+  </body>
+</html>

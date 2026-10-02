@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+assets/*
+!assets/.gitkeep
+snippets/vite-tag.liquid
+.vite-shopify-theme.json
+.vite-shopify-theme.lock

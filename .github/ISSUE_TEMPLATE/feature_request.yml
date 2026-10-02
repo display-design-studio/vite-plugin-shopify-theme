@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose an improvement that preserves the package boundaries
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the user problem before the proposed API. Entry discovery, managed tunnels, Shopify deployment, and a core CLI are intentionally out of scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who encounters the problem, in which workflow, and what do they need to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest behavior change that solves the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include current Vite, Shopify CLI, or user-land solutions.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and boundary impact
+      description: Note any impact on public API, deterministic output, ownership, dependencies, or supported tools.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true
+        - label: The proposal preserves explicit entries and zero runtime dependencies.
+          required: true

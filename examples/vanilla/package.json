@@ -1,0 +1,14 @@
+{
+  "name": "vite-shopify-theme-example-vanilla",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@display-studio/vite-plugin-shopify-theme": "file:../..",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1"
+  }
+}
