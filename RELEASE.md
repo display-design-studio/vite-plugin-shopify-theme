@@ -6,6 +6,7 @@ This checklist is for repository maintainers. It is intentionally excluded from 
 
 - [ ] Check out the release commit and confirm `git status --short` is empty.
 - [ ] Run `npm ci`.
+- [ ] Run `npm ci --prefix playground/skeleton-theme`.
 - [ ] Run the canonical suite with `npm run check`.
 - [ ] Run the network-dependent compatibility matrices with `npm run compat` and `npm run compat:frameworks`.
 - [ ] Run `npm publish --dry-run` and verify version `0.2.1`, 11 published files, the expected package metadata, and links. Confirm there is no CLI, runtime dependency, or unexpected subpath.

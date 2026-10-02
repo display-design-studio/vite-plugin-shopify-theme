@@ -351,10 +351,12 @@ Vite uses port `5173` and the Shopify preview uses port `9292`. Override them wi
 ## Commands
 
 ```sh
+npm ci
+npm ci --prefix playground/skeleton-theme
 npm run check
 ```
 
-Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`. The credentialed `e2e:shopify` smoke test is documented above and remains opt-in.
+The root package and vendored playground intentionally remain separate npm projects with separate lockfiles. Install both before running the canonical check. Individual checks remain available as `typecheck`, `test`, `build`, `playground:build`, `pack:check`, and `theme:check`. The credentialed `e2e:shopify` smoke test is documented above and remains opt-in.
 
 Compatibility checks install a freshly packed copy of the plugin and their requested tools in an isolated temporary directory, so they require network access and intentionally remain outside `npm run check`:
 
