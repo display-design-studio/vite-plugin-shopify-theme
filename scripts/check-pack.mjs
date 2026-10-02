@@ -127,7 +127,12 @@ export async function checkPackage() {
         encoding: 'utf8',
         env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
       });
-      const [result] = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      const result = Array.isArray(parsed)
+        ? parsed[0]
+        : parsed?.filename
+          ? parsed
+          : Object.values(parsed ?? {})[0];
       if (!result?.filename || !Array.isArray(result.files)) throw new Error('npm pack returned an invalid manifest');
       validateFiles(result.files.map(({ path }) => path));
       return result;

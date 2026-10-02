@@ -34,9 +34,14 @@ function packageTarball(directory) {
     encoding: 'utf8',
     env: { ...process.env, npm_config_cache: join(directory, 'npm-cache') },
   });
-  const result = JSON.parse(output);
-  if (!Array.isArray(result) || !result[0]?.filename) throw new Error('[compatibility: pack] npm pack did not report a tarball filename.');
-  return join(directory, result[0].filename);
+  const parsed = JSON.parse(output);
+  const result = Array.isArray(parsed)
+    ? parsed[0]
+    : parsed?.filename
+      ? parsed
+      : Object.values(parsed ?? {})[0];
+  if (!result?.filename) throw new Error('[compatibility: pack] npm pack did not report a tarball filename.');
+  return join(directory, result.filename);
 }
 
 function install(directory, specifications, context) {
