@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented here.
 
+## Unreleased
+
+### Added
+
+- Added stable, searchable diagnostic codes to every plugin-authored error and warning, with a documented code reference for troubleshooting.
+
 ## 0.3.0
 
 ### Added

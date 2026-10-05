@@ -386,7 +386,20 @@ Version 0.2.0 replaces the contract published in 0.1.0. Update configuration and
 
 ## Troubleshooting
 
-Plugin diagnostics begin with `[shopify-theme]` and identify the relevant option or filesystem path.
+Plugin errors and warnings begin with `[shopify-theme:<CODE>]`. The code is stable and searchable; the remaining text supplies the affected option, entry, or filesystem path. Status messages continue to use `[shopify-theme]` without a code.
+
+| Codes | Meaning |
+| --- | --- |
+| `CONFIG_ENTRIES`, `CONFIG_THEME_ROOT`, `CONFIG_SNIPPET`, `CONFIG_DEV_ORIGIN` | Invalid plugin options or unsafe configured paths |
+| `CONFIG_VITE_CONFLICT`, `CONFIG_CSS_ENTRY_RESERVED` | User Vite configuration conflicts with plugin-owned settings |
+| `PATH_OUTSIDE_THEME`, `PATH_RESOLUTION_FAILED`, `PATH_MISSING` | A generated, recorded, or changed path is unsafe or unavailable |
+| `FS_READ_FAILED`, `FS_JSON_INVALID`, `FS_REMOVE_FAILED`, `FS_WRITE_FAILED` | A required filesystem operation failed |
+| `STATE_INVALID` | Generated-asset ownership state has an unsafe structure |
+| `MANIFEST_INVALID`, `MANIFEST_ENTRY_MISSING`, `MANIFEST_IMPORT_MISSING` | Vite manifest data is invalid or incomplete |
+| `LOCK_CREATE_FAILED`, `LOCK_ACTIVE`, `LOCK_METADATA_MISSING`, `LOCK_METADATA_INVALID` | Theme ownership cannot be safely established |
+| `LOCK_RECLAIM_FAILED`, `LOCK_ACQUIRE_FAILED`, `LOCK_CHANGED`, `LOCK_RELEASE_FAILED` | Theme ownership recovery or cleanup failed |
+| `BUILD_CSS_MISSING`, `BUILD_CLEANUP_FAILED`, `BUILD_ROLLBACK_FAILED` | Post-build generation or its safety rollback failed |
+| `DEV_ORIGIN_UNAVAILABLE`, `DEV_OWNERSHIP_LOST`, `DEV_EXTERNAL_ORIGIN` | Development server startup or external-origin guidance |
 
 | Problem | Likely cause | Remedy |
 | --- | --- | --- |
