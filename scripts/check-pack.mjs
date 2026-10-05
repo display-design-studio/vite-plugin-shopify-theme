@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { execNpmSync } from './npm-command.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -62,7 +63,7 @@ export function validateFiles(files) {
 
 export function validateMetadata(manifest) {
   strictEqual(manifest.name, '@display-studio/vite-plugin-shopify-theme', 'package name differs');
-  strictEqual(manifest.version, '0.2.1', 'package version differs');
+  strictEqual(manifest.version, '0.3.0', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
   strictEqual(manifest.main, './dist/index.js', 'main entrypoint differs');
@@ -122,7 +123,7 @@ export async function checkPackage() {
 
   try {
     const pack = stage('pack', () => {
-      const raw = execFileSync('npm', ['pack', '--json', '--pack-destination', packDirectory], {
+      const raw = execNpmSync(['pack', '--json', '--pack-destination', packDirectory], {
         cwd: root,
         encoding: 'utf8',
         env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
@@ -139,7 +140,7 @@ export async function checkPackage() {
     });
 
     writeFileSync(join(consumer, 'package.json'), '{"name":"package-contract-consumer","private":true,"type":"module"}\n');
-    stage('install', () => execFileSync('npm', [
+    stage('install', () => execNpmSync([
       'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
       '--legacy-peer-deps', join(packDirectory, pack.filename),
     ], {

@@ -97,7 +97,7 @@ The package is intentionally narrow: it does not discover entries, run Shopify C
 | Option | Type | Default | Contract and behavior |
 | --- | --- | --- | --- |
 | `entries` | `Record<string, string>` | Required | A non-empty map of Liquid entry names to source files. Names must match `[A-Za-z0-9][A-Za-z0-9._-]*`; sources must be distinct existing files inside `themeRoot`. This map is authoritative and is not supplemented by entry discovery. |
-| `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
+| `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory, and canonicalized through its real path. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
 | `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid file, resolved relative to and required to remain inside `themeRoot`. Render the corresponding snippet name from Liquid. The file is generated on build and temporarily replaced during development. |
 | `devOrigin` | `string` | The listening Vite server origin | Public origin used in development tags. It must be an absolute HTTPS origin with no credentials, path, query, or hash. Use it for a separately managed tunnel; the plugin configures Vite for that origin but does not start the tunnel. |
 
@@ -143,7 +143,7 @@ Vite writes flat, hashed JavaScript, CSS, and chunk files plus `assets/vite-mani
 
 Production snippets follow Vite's `build.modulePreload` setting. Shared imported JavaScript is emitted as module preloads unless `build.modulePreload` is `false`, and styles discovered through the manifest are emitted before scripts.
 
-The default recursive preload traversal is the recommended policy. Set `build.modulePreload: false` when the storefront should load chunks only through their JavaScript imports. Because Shopify renders Liquid rather than a Vite HTML entrypoint, an entry may optionally import `vite/modulepreload-polyfill` first when older-browser support for dynamic module preloading is required. No plugin option is needed for either policy.
+The default preload traversal is the recommended policy. It is iterative, deterministic, cycle-safe, and does not consume the JavaScript call stack for deep manifest graphs. Set `build.modulePreload: false` when the storefront should load chunks only through their JavaScript imports. Because Shopify renders Liquid rather than a Vite HTML entrypoint, an entry may optionally import `vite/modulepreload-polyfill` first when older-browser support for dynamic module preloading is required. No plugin option is needed for either policy.
 
 Vite gives emitted assets content-hashed filenames; Shopify's `asset_url` filter may then append its own `?v=` CDN version. These layers are complementary: the filename identifies the bundle content and Shopify controls its delivery cache. Do not append manual query strings to generated asset names or introduce a second versioning scheme.
 
@@ -309,6 +309,8 @@ Then render the custom snippet name:
 
 Paths are resolved from Vite's configured root when one is supplied, otherwise from the process working directory. Avoid also setting Vite `root` when a direct `themeRoot` path is clearer.
 
+The theme root itself may be a symlink. Entry files and writable locations may also cross symlinks only when their real targets remain inside the canonical theme root. Escaping entry, snippet, asset, ownership-state, lock, manifest, and recovery paths are rejected before the plugin reads, writes, or deletes them. A stale development lock restores a snippet only when its recorded path remains contained and its generated hash still matches; otherwise the snippet is preserved.
+
 ### Theme App Extensions
 
 A [Theme App Extension](https://shopify.dev/docs/apps/build/online-store/theme-app-extensions/configuration) has its own `assets`, `blocks`, `snippets`, and `locales` directories. The plugin can build against that extension directory when its entry sources also live inside the same root:
@@ -440,7 +442,7 @@ SHOPIFY_CLI_THEME_TOKEN=shptka_... \
 npm run e2e:shopify
 ```
 
-`SHOPIFY_FLAG_STORE_PASSWORD` is also honored when the storefront is password protected. The harness never places credentials in process arguments or files. It builds the package, starts Vite and `shopify theme dev` against the Skeleton Theme playground, requests the local Shopify preview, verifies the development tags for `theme.css` and `theme.ts`, and then loads both entrypoints from Vite. It does not enable `--theme-editor-sync`, so remote Theme Editor changes are not synchronized into the tracked fixture.
+`SHOPIFY_FLAG_PASSWORD` is also honored when the storefront is password protected. The harness never places credentials in process arguments or files. It builds the package, starts Vite and `shopify theme dev` against the Skeleton Theme playground, requests the local Shopify preview, verifies the development tags for `theme.css` and `theme.ts`, and then loads both entrypoints from Vite. It does not enable `--theme-editor-sync`, so remote Theme Editor changes are not synchronized into the tracked fixture. Maintainers can run the same test through the manual, `main`-only `Shopify E2E` workflow and its approval-protected `shopify-e2e` environment.
 
 Vite uses port `5173` and the Shopify preview uses port `9292`. Override them with `SHOPIFY_VITE_PORT` and `SHOPIFY_THEME_PORT`; use `SHOPIFY_E2E_TIMEOUT_MS` to change the 120-second startup timeout. Occupied ports fail before either server starts. The harness stops both processes on success, failure, `SIGINT`, or `SIGTERM` and verifies that the plugin restored the original generated snippet.
 
@@ -461,6 +463,10 @@ VITE_VERSION=8.0.0 npm run compat:vite
 SHOPIFY_CLI_VERSION=3.94.3 npm run compat:shopify
 VITE_VERSION=8 SHOPIFY_CLI_VERSION=4 npm run compat
 npm run compat:frameworks
+npm run compat:consumer -- npm
+npm run compat:consumer -- pnpm
+npm run compat:consumer -- yarn
+npm run compat:consumer -- bun
 ```
 
 Without an environment override, the Vite check uses `8` and the Shopify Theme Check uses `4`. The framework command checks Vue and React together; `compat:vue` and `compat:react` run their fixtures separately. All compatibility commands require network access and remain outside `npm run check`.
@@ -474,6 +480,12 @@ Without an environment override, the Vite check uses `8` and the Shopify Theme C
 | Shopify CLI | Not a dependency | Theme Check with 3.94.3 and latest 4.x on Node 24 |
 | Vue | Optional composition | Vue 3 with `@vitejs/plugin-vue` 6 and Vite 8 on Node 24 |
 | React | Optional composition | React 19 with `@vitejs/plugin-react` 6 and Vite 8 on Node 24 |
+| Operating systems | Linux, macOS, and Windows | Canonical `npm run check` on Node 24 |
+| npm packaging | npm bundled with minimum Node (`10.8.2`) and current npm | Fresh package build, pack, install, metadata, exports, and files |
+| Consumer managers | npm, pnpm, Yarn, and Bun | Fresh tarball install, public import, Vite build, assets, snippet, and manual-file preservation |
+| Filesystem links | Symlinked roots and contained targets | Canonical-path acceptance plus escaping read/write-path rejection |
+| Shopify development | Credentialed opt-in smoke test | Approval-protected manual workflow on `main` with exact snippet restoration |
+| Release | npm Trusted Publishing and GitHub Release | Tag/version verification, full compatibility suite, integrity-safe reruns, and protected environment |
 
 Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are excluded because Vite 8 does not support them. Node 20 remains supported despite its EOL and will be retained until a future incompatible major release. Shopify CLI is used only for compatibility verification; consumers do not receive it as a dependency.
 
@@ -482,6 +494,10 @@ Node 21 and Node releases before 20.19.0 or in the 22.x line before 22.12.0 are 
 The completed `0.2.x` roadmap and upcoming work are tracked in [Roadmap: adoption, developer experience, and path to 1.0](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/1). The tracking issue is the canonical checklist and links to focused implementation issues as work begins.
 
 The project invariants take precedence over every roadmap item: entries remain explicit, the package keeps zero runtime dependencies, generated output stays deterministic, cleanup never broadens beyond plugin-owned assets, and managed tunnels, Shopify deployment, and an internal CLI remain outside the core package.
+
+## Release process
+
+Releases are tag-driven. A `v*` tag must match `package.json`; the workflow runs the canonical and network-dependent compatibility suites, then waits on the protected `release` environment. npm publication uses Trusted Publishing from `.github/workflows/release.yml` with no repository npm token. On a rerun, an existing registry version is accepted only when its integrity exactly matches the locally packed artifact, after which the workflow creates or reconciles the GitHub Release.
 
 <!-- Badges -->
 

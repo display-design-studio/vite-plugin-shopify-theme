@@ -63,3 +63,40 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run compat:${{ matrix.framework }}
+
+  packaging:
+    name: Node 24 / npm ${{ matrix.npm }} / package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        npm: [10.8.2, latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm install --global npm@${{ matrix.npm }}
+      - run: npm ci
+      - run: npm run build
+      - run: npm run pack:check
+
+  consumers:
+    name: Node 24 / ${{ matrix.manager }} consumer
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        manager: [npm, pnpm, yarn, bun]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.manager == 'bun'
+      - run: npm install --global pnpm@latest
+        if: matrix.manager == 'pnpm'
+      - run: npm install --global yarn@latest
+        if: matrix.manager == 'yarn'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run compat:consumer -- ${{ matrix.manager }}

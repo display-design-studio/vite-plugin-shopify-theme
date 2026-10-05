@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
-import { CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
+import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
@@ -18,8 +18,10 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let owner: LockOwner | undefined;
   let cssCodeSplit = true;
   const restoreDevelopmentSnippet = () => {
-    if (!developmentActive || !existsSync(options.snippet) || sha(readText(options.snippet, 'development snippet')) !== developmentHash) return;
-    if (original?.exists) atomicWrite(options.snippet, original.content); else removeFile(options.snippet, 'temporary development snippet');
+    if (!developmentActive || !existsSync(options.snippet)) return;
+    const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet', true);
+    if (sha(readText(snippet, 'development snippet')) !== developmentHash) return;
+    if (original?.exists) atomicWrite(snippet, original.content); else removeFile(snippet, 'temporary development snippet');
     developmentActive = false;
   };
   const release = () => {
@@ -80,30 +82,44 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     },
     writeBundle(_output, bundle) {
       if (config.command !== 'build') return;
+      let writtenSnippet: { path: string; generatedHash: string; original: { exists: boolean; content: string } } | undefined;
       try {
-        const assetsRoot = resolve(options.themeRoot, 'assets');
-        const statePath = resolve(options.themeRoot, STATE_FILE);
+        const assetsRoot = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, 'assets'), 'Shopify assets directory');
+        const statePath = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, STATE_FILE), 'Generated asset ownership state');
         const previous = existsSync(statePath) ? readOwnershipState(statePath) : { files: [] };
-        const manifest = readManifest(resolve(assetsRoot, VITE_MANIFEST));
+        const manifestPath = canonicalPathInside(options.themeRoot, resolve(assetsRoot, VITE_MANIFEST), 'Vite build manifest', true);
+        const manifest = readManifest(manifestPath);
         const files = Object.keys(bundle).filter((file) => file !== VITE_MANIFEST).sort();
         const aggregateCss = cssCodeSplit ? undefined : manifest[CSS_BUNDLE_ENTRY]?.file;
         if (!cssCodeSplit && (!aggregateCss || !aggregateCss.endsWith('.css'))) {
           throw diagnostic(`Vite did not generate the aggregated CSS asset expected at manifest entry "${CSS_BUNDLE_ENTRY}". Run a clean build and confirm that build.cssCodeSplit remains false.`);
         }
-        atomicWrite(options.snippet, renderProductionSnippet(manifest, options.entries, options.themeRoot, {
+        const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Generated Liquid snippet');
+        const originalSnippet = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
+        const generatedSnippet = renderProductionSnippet(manifest, options.entries, options.themeRoot, {
           modulePreload: config.build.modulePreload !== false,
           aggregateCss,
-        }));
+        });
+        atomicWrite(snippet, generatedSnippet);
+        writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
         for (const file of previous.files) {
-          const target = resolve(assetsRoot, file);
+          const target = canonicalPathInside(options.themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
           if (!current.has(file) && inside(assetsRoot, target) && existsSync(target)) removeFile(target, 'stale plugin-owned asset');
         }
         atomicWrite(statePath, `${JSON.stringify({ files }, null, 2)}\n`);
       } catch (error) {
+        let rollbackError: unknown;
+        try {
+          if (writtenSnippet && existsSync(writtenSnippet.path) && sha(readText(writtenSnippet.path, 'generated Liquid snippet')) === writtenSnippet.generatedHash) {
+            if (writtenSnippet.original.exists) atomicWrite(writtenSnippet.path, writtenSnippet.original.content);
+            else removeFile(writtenSnippet.path, 'generated Liquid snippet');
+          }
+        } catch (failure) { rollbackError = failure; }
         try { cleanup(); } catch (cleanupError) {
           throw diagnostic(`Build processing failed and ownership cleanup also failed (${errorDetail(cleanupError)}). Resolve the cleanup error before retrying.`, new AggregateError([error, cleanupError]));
         }
+        if (rollbackError) throw diagnostic(`Build processing failed and the prior Liquid snippet could not be restored (${errorDetail(rollbackError)}). Preserve the snippet manually before retrying.`, new AggregateError([error, rollbackError]));
         throw error;
       }
     },
@@ -115,13 +131,14 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       const activate = () => {
         try {
           const origin = options.devOrigin?.origin ?? localOrigin(server);
-          original = existsSync(options.snippet) ? { exists: true, content: readText(options.snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
+          const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet');
+          original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
           const content = developmentSnippet(origin, options.entries, options.themeRoot);
-          atomicWrite(options.snippet, content);
+          atomicWrite(snippet, content);
           developmentHash = sha(content);
           developmentActive = true;
           if (!owner) throw diagnostic(`Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
-          owner.development = { snippet: options.snippet, developmentHash, original };
+          owner.development = { snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
           const entryCount = Object.keys(options.entries).length;
           config.logger.info(`[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`);
@@ -139,6 +156,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     closeServer() { cleanup(); },
     handleHotUpdate(context) {
       if (!/\.(liquid|json)$/i.test(context.file) || !inside(options.themeRoot, context.file)) return;
+      canonicalPathInside(options.themeRoot, context.file, 'Changed theme file');
       context.server.ws.send({ type: 'custom', event: HOT_RELOAD_EVENT, data: {} });
       return [];
     },

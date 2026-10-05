@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,7 +21,8 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             playground/skeleton-theme/package-lock.json
-      - run: npm install --global npm@latest
+      - uses: oven-sh/setup-bun@v2
+      - run: npm install --global npm@latest pnpm@latest yarn@latest
       - name: Require a matching release tag
         run: |
           test "${GITHUB_REF_TYPE}" = "tag"
@@ -32,19 +32,33 @@ jobs:
       - run: npm run check
       - run: npm run compat
       - run: npm run compat:frameworks
+      - run: npm run compat:consumer -- npm
+      - run: npm run compat:consumer -- pnpm
+      - run: npm run compat:consumer -- yarn
+      - run: npm run compat:consumer -- bun
       - run: git diff --check
       - run: npm pack --dry-run --json
 
   release:
-    name: Create GitHub Release
+    name: Publish npm and GitHub releases
     needs: verify
     runs-on: ubuntu-latest
     environment: release
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Create GitHub Release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@latest
+      - run: npm ci
+      - run: npm run build
+      - name: Publish with trusted publishing or verify an identical rerun
+        run: node scripts/publish-release.mjs
+      - name: Create or reconcile GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+        run: gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag

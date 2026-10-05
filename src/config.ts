@@ -1,5 +1,5 @@
-import { existsSync, statSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { existsSync, lstatSync, realpathSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import type { UserConfig } from 'vite';
 
 export const CSS_BUNDLE_ENTRY = 'style.css';
@@ -31,6 +31,33 @@ export function inside(root: string, path: string): boolean {
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }
 
+/** Resolve symlinks in an existing path, or in the nearest existing ancestor. */
+export function canonicalPathInside(root: string, path: string, purpose: string, mustExist = false): string {
+  const absolute = resolve(path);
+  if (!inside(root, absolute)) throw diagnostic(`${purpose} resolves outside theme root "${root}".`);
+  let ancestor = absolute;
+  while (!existsSync(ancestor)) {
+    try {
+      if (lstatSync(ancestor).isSymbolicLink()) realpathSync.native(ancestor);
+    } catch (error) {
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw diagnostic(`Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
+    }
+    const parent = dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  if (mustExist && !existsSync(absolute)) throw diagnostic(`${purpose} was not found at "${absolute}".`);
+  let canonical: string;
+  try {
+    const canonicalAncestor = realpathSync.native(ancestor);
+    canonical = ancestor === absolute ? canonicalAncestor : resolve(canonicalAncestor, relative(ancestor, absolute));
+  } catch (error) {
+    throw diagnostic(`Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
+  }
+  if (!inside(root, canonical)) throw diagnostic(`${purpose} at "${absolute}" resolves outside canonical theme root "${root}".`);
+  return canonical;
+}
+
 export function diagnostic(message: string, cause?: unknown): Error {
   return new Error(`[shopify-theme] ${message}`, cause === undefined ? undefined : { cause });
 }
@@ -55,10 +82,16 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   }
   if (options.themeRoot !== undefined && typeof options.themeRoot !== 'string') throw diagnostic('`themeRoot` must be a filesystem path string.');
   if (options.snippet !== undefined && typeof options.snippet !== 'string') throw diagnostic('`snippet` must be a filesystem path string relative to `themeRoot`.');
-  const themeRoot = resolve(cwd, options.themeRoot ?? '.');
+  const configuredRoot = resolve(cwd, options.themeRoot ?? '.');
+  let themeRoot: string;
+  try { themeRoot = realpathSync.native(configuredRoot); } catch (error) {
+    throw diagnostic(`Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
+  }
+  if (!statSync(themeRoot).isDirectory()) throw diagnostic(`Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
   const configuredSnippet = options.snippet ?? 'snippets/vite-tag.liquid';
-  const snippet = resolve(themeRoot, configuredSnippet);
-  if (!inside(themeRoot, snippet)) throw diagnostic(`Configured snippet "${configuredSnippet}" resolves outside theme root "${themeRoot}". Choose a snippet path inside the theme.`);
+  const unresolvedSnippet = resolve(themeRoot, configuredSnippet);
+  if (!inside(themeRoot, unresolvedSnippet)) throw diagnostic(`Configured snippet "${configuredSnippet}" resolves outside theme root "${themeRoot}". Choose a snippet path inside the theme.`);
+  const snippet = canonicalPathInside(themeRoot, unresolvedSnippet, `Configured snippet "${configuredSnippet}"`);
   const entries: Record<string, string> = {};
   const sources = new Set<string>();
   for (const [name, source] of Object.entries(options.entries)) {
@@ -66,9 +99,10 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
       throw diagnostic(`Liquid entry name ${JSON.stringify(name)} is invalid. Use only ASCII letters, digits, dots, underscores, and hyphens, starting with a letter or digit, such as "theme.ts".`);
     }
     if (typeof source !== 'string' || source.length === 0) throw diagnostic(`Entry "${name}" must map to a non-empty source path string.`);
-    const absolute = resolve(themeRoot, source);
-    if (!inside(themeRoot, absolute)) throw diagnostic(`Entry "${name}" source "${source}" resolves outside theme root "${themeRoot}". Choose a source inside the theme.`);
-    if (!existsSync(absolute)) throw diagnostic(`Entry "${name}" source "${source}" was not found at "${absolute}". Create the file or correct the entry path.`);
+    const unresolved = resolve(themeRoot, source);
+    if (!inside(themeRoot, unresolved)) throw diagnostic(`Entry "${name}" source "${source}" resolves outside theme root "${themeRoot}". Choose a source inside the theme.`);
+    if (!existsSync(unresolved)) throw diagnostic(`Entry "${name}" source "${source}" was not found at "${unresolved}". Create the file or correct the entry path.`);
+    const absolute = canonicalPathInside(themeRoot, unresolved, `Entry "${name}" source "${source}"`, true);
     let sourceStat;
     try { sourceStat = statSync(absolute); } catch (error) {
       throw diagnostic(`Could not inspect entry "${name}" at "${absolute}" (${errorDetail(error)}). Check that it is readable and retry.`, error);
@@ -116,11 +150,12 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
       [CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID],
     ])
     : { ...options.entries };
+  const assets = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, 'assets'), 'Shopify assets directory');
   return {
     root: options.themeRoot, appType: 'custom', base: './', publicDir: false,
     input: buildEntries, server,
     build: {
-      outDir: resolve(options.themeRoot, 'assets'), emptyOutDir: false, manifest: VITE_MANIFEST,
+      outDir: assets, emptyOutDir: false, manifest: VITE_MANIFEST,
       // Vite 8.0 reads build inputs here; later Vite 8 releases read the
       // top-level input above. Supplying the same owned map in both places is
       // harmless after the migration and keeps the declared minimum working.

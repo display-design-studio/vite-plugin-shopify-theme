@@ -1,0 +1,34 @@
+name: Shopify E2E
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: shopify-e2e-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: shopify-e2e
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            playground/skeleton-theme/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix playground/skeleton-theme
+      - run: npm run e2e:shopify
+        env:
+          SHOPIFY_FLAG_STORE: ${{ vars.SHOPIFY_FLAG_STORE }}
+          SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_CLI_THEME_TOKEN }}
+          SHOPIFY_FLAG_PASSWORD: ${{ secrets.SHOPIFY_STOREFRONT_PASSWORD }}
