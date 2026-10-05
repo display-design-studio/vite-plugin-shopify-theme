@@ -535,6 +535,57 @@ Plugin-authored codes identify the Vite/plugin boundary; Shopify CLI diagnostics
 
 During development all generated script and stylesheet tags use anonymous CORS. Once the development snippet is active, the plugin writes one readiness message through Vite's logger; Vite's `logLevel` and custom logger still apply.
 
+### Reporting a problem
+
+Use the [bug report form](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/new?template=bug_report.yml) when possible. For discussions or an existing issue, copy the checklist below and keep only sanitized values. Never post Shopify credentials, access tokens, customer data, private preview URLs, or private tunnel URLs.
+
+```md
+## Troubleshooting report
+
+### Environment
+
+- Plugin version:
+- Node.js version:
+- Vite version:
+- Shopify CLI version (if relevant):
+- Package manager and version:
+- Operating system:
+
+### Minimal reproduction
+
+- Repository or minimal configuration and theme structure:
+- Exact commands and steps:
+- Expected behavior:
+- Actual behavior:
+
+### First failing boundary
+
+- [ ] Vite or plugin build/development processing
+- [ ] Shopify CLI, Liquid, theme validation, or storefront rendering
+- [ ] Browser, HTTPS tunnel, or HMR WebSocket
+- [ ] Unsure
+
+- First failing command, request, or file:
+- Plugin diagnostic code(s), or `None`:
+
+### Boundary evidence
+
+- `npm run build`: pass / fail / N/A
+- Generated manifest and snippet: present / missing / N/A
+- `shopify theme check`: pass / fail / N/A
+- Direct `@vite/client` request: pass / fail / N/A
+- Direct entry request: pass / fail / N/A
+- HMR WebSocket: connected / failed / N/A
+
+### Sanitized logs
+
+Paste only the relevant diagnostic and stack trace.
+
+- [ ] I removed credentials, tokens, customer data, and private URLs.
+```
+
+The first failing boundary should match the categories above. Mark irrelevant development or network checks as `N/A`; a production build report does not need tunnel evidence.
+
 ## Public API
 
 The package has one supported entrypoint: `@display-studio/vite-plugin-shopify-theme`. It exports `shopifyTheme` both as the default export and as a named export, plus the named utilities `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, and `productionSnippet`. Its public TypeScript types are `ShopifyThemeOptions`, `NormalizedOptions`, and `ManifestTags`.
