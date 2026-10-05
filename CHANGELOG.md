@@ -10,6 +10,7 @@ All notable changes to this package are documented here.
 - Added opt-in `diagnostics` lifecycle logging through Vite's logger, including stable events for configuration, ownership, build output, development restoration, and hot reloads.
 - Added early `THEME_STRUCTURE_INVALID` diagnostics for missing or non-directory Shopify assets and configured snippet directories.
 - Documented supported monorepo and multi-theme config topologies and added concurrent isolation coverage for independent theme roots.
+- Added boundary-first troubleshooting guidance that separates Vite/plugin, Shopify, and tunnel/browser failures with concrete file, command, HTTP, and WebSocket checks.
 
 ## 0.3.0
 

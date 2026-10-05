@@ -429,6 +429,27 @@ Version 0.2.0 replaces the contract published in 0.1.0. Update configuration and
 
 Plugin errors and warnings begin with `[shopify-theme:<CODE>]`. The code is stable and searchable; the remaining text supplies the affected option, entry, or filesystem path. Status messages continue to use `[shopify-theme]` without a code.
 
+### Classify the failing boundary first
+
+Start with the first observable that fails; later symptoms are usually downstream effects.
+
+1. **Vite or plugin boundary:** `vite build` or `vite` fails, a `[shopify-theme:<CODE>]` diagnostic appears, or the expected manifest, hashed asset, or generated snippet is absent. Fix this boundary before running Shopify CLI. Check the reported option/path, enable `diagnostics: true` when lifecycle context is needed, and confirm `assets/vite-manifest.json` plus the configured snippet are produced. Vite owns compilation; this plugin owns explicit inputs, generated Liquid, recorded-asset cleanup, and theme-root locking.
+2. **Shopify boundary:** Vite succeeds and generated files exist, but `shopify theme check`, Liquid rendering, the local storefront, or the Theme Editor reports a Liquid/schema/asset error. Run `shopify theme check --path path/to/theme`, inspect the exact `{% render %}` call and entry key, and confirm the generated asset was included in the theme Shopify is actually serving. Shopify CLI owns theme validation, preview, upload, and Theme Editor behavior; the plugin does not start or deploy through Shopify CLI.
+3. **Tunnel or browser boundary:** local preview works and direct local Vite URLs load, but a hosted Theme Editor iframe cannot load assets or HMR. Probe the configured origin directly, then inspect the browser Network and Console panels. The tunnel provider and browser own public DNS, TLS certificates, HTTP/WebSocket forwarding, and iframe reachability; the plugin only configures Vite for the supplied stable `devOrigin`.
+
+For development, probe both Vite HTTP paths from the same network as the browser:
+
+```sh
+curl --fail --head https://vite.example.com/@vite/client
+curl --fail --head https://vite.example.com/frontend/entrypoints/theme.ts
+```
+
+An HTTP success with failed HMR narrows the problem to the WebSocket path: verify the tunnel forwards upgrades, the certificate is trusted, and the browser connects to `wss://` on the `devOrigin` host and port. If either HTTP probe fails, fix DNS, certificate, origin stability, or HTTP forwarding before changing plugin configuration. Restart Vite whenever the public URL changes. See [Development modes](#development-modes) for setup and [HMR troubleshooting](#hmr-troubleshooting) for the browser event sequence.
+
+Plugin-authored codes identify the Vite/plugin boundary; Shopify CLI diagnostics and browser/tunnel errors do not gain a plugin code. A missing code does not prove the plugin is uninvolved, so use the generated files and direct URL probes above to locate the handoff.
+
+### Diagnostic code reference
+
 | Codes | Meaning |
 | --- | --- |
 | `CONFIG_ENTRIES`, `CONFIG_THEME_ROOT`, `CONFIG_SNIPPET`, `CONFIG_DEV_ORIGIN`, `CONFIG_DIAGNOSTICS` | Invalid plugin options or unsafe configured paths |
@@ -442,6 +463,8 @@ Plugin errors and warnings begin with `[shopify-theme:<CODE>]`. The code is stab
 | `LOCK_RECLAIM_FAILED`, `LOCK_ACQUIRE_FAILED`, `LOCK_CHANGED`, `LOCK_RELEASE_FAILED` | Theme ownership recovery or cleanup failed |
 | `BUILD_CSS_MISSING`, `BUILD_CLEANUP_FAILED`, `BUILD_ROLLBACK_FAILED` | Post-build generation or its safety rollback failed |
 | `DEV_ORIGIN_UNAVAILABLE`, `DEV_OWNERSHIP_LOST`, `DEV_EXTERNAL_ORIGIN` | Development server startup or external-origin guidance |
+
+### Symptom reference
 
 | Problem | Likely cause | Remedy |
 | --- | --- | --- |
