@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { execNpmSync } from './npm-command.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 export const expectedFiles = [
   'CHANGELOG.md',
@@ -123,7 +123,7 @@ export async function checkPackage() {
 
   try {
     const pack = stage('pack', () => {
-      const raw = execFileSync(npmCommand, ['pack', '--json', '--pack-destination', packDirectory], {
+      const raw = execNpmSync(['pack', '--json', '--pack-destination', packDirectory], {
         cwd: root,
         encoding: 'utf8',
         env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
@@ -140,7 +140,7 @@ export async function checkPackage() {
     });
 
     writeFileSync(join(consumer, 'package.json'), '{"name":"package-contract-consumer","private":true,"type":"module"}\n');
-    stage('install', () => execFileSync(npmCommand, [
+    stage('install', () => execNpmSync([
       'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
       '--legacy-peer-deps', join(packDirectory, pack.filename),
     ], {

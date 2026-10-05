@@ -3,11 +3,11 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } fr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execNpmSync } from './npm-command.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = join(root, 'test', 'fixtures', 'compatibility');
 const manager = process.argv[2] ?? process.env.PACKAGE_MANAGER ?? 'npm';
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const commands = {
   npm: { install: ['install', '--no-audit', '--no-fund', '--save-dev'], build: ['exec', '--', 'vite', 'build'] },
   pnpm: { install: ['add', '--save-dev'], build: ['exec', 'vite', 'build'] },
@@ -22,19 +22,21 @@ function environment(temporary) {
 }
 
 function run(command, args, directory, temporary) {
-  execFileSync(command, args, { cwd: directory, stdio: 'inherit', env: environment(temporary) });
+  const options = { cwd: directory, stdio: 'inherit', env: environment(temporary) };
+  if (command === 'npm') execNpmSync(args, options);
+  else execFileSync(command, args, options);
 }
 
 const temporary = mkdtempSync(join(tmpdir(), `vite-plugin-shopify-theme-${manager}-consumer-`));
 try {
-  const packOutput = JSON.parse(execFileSync(npmCommand, ['pack', '--json', '--pack-destination', temporary], { cwd: root, encoding: 'utf8', env: environment(temporary) }));
+  const packOutput = JSON.parse(execNpmSync(['pack', '--json', '--pack-destination', temporary], { cwd: root, encoding: 'utf8', env: environment(temporary) }));
   const tarballName = (Array.isArray(packOutput) ? packOutput[0] : packOutput)?.filename;
   if (!tarballName) throw new Error('npm pack did not report a tarball filename.');
   const tarball = join(temporary, tarballName);
   const consumer = join(temporary, 'consumer');
   cpSync(fixture, consumer, { recursive: true });
   const command = commands[manager];
-  const managerCommand = manager === 'npm' ? npmCommand : manager;
+  const managerCommand = manager;
   run(managerCommand, [...command.install, tarball, 'vite@8'], consumer, temporary);
   run(managerCommand, command.build, consumer, temporary);
   const imported = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '--eval', [

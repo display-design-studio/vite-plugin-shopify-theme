@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } fr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execNpmSync } from './npm-command.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = join(root, 'test', 'fixtures', 'compatibility');
@@ -17,7 +18,9 @@ if (!allowedModes.has(mode)) {
 
 function run(command, args, options, context) {
   try {
-    execFileSync(command, args, { stdio: 'inherit', ...options });
+    const executionOptions = { stdio: 'inherit', ...options };
+    if (command === 'npm') execNpmSync(args, executionOptions);
+    else execFileSync(command, args, executionOptions);
   } catch (error) {
     throw new Error(`[compatibility: ${context}] command failed: ${command} ${args.join(' ')}`, { cause: error });
   }
@@ -29,7 +32,7 @@ function read(path, context) {
 }
 
 function packageTarball(directory) {
-  const output = execFileSync('npm', ['pack', '--json', '--pack-destination', directory], {
+  const output = execNpmSync(['pack', '--json', '--pack-destination', directory], {
     cwd: root,
     encoding: 'utf8',
     env: { ...process.env, npm_config_cache: join(directory, 'npm-cache') },
