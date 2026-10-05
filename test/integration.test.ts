@@ -59,6 +59,32 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
 }
 
 describe('isolated builds', () => {
+  it('builds separate theme roots concurrently without cross-ownership or cleanup', async () => {
+    const first = fixture();
+    const second = fixture();
+    writeFileSync(join(first, 'assets/first-manual.txt'), 'first');
+    writeFileSync(join(second, 'assets/second-manual.txt'), 'second');
+    writeFileSync(join(first, 'assets/first-stale.js'), 'stale');
+    writeFileSync(join(second, 'assets/second-stale.js'), 'stale');
+    writeFileSync(statePath(first), '{"files":["first-stale.js"]}\n');
+    writeFileSync(statePath(second), '{"files":["second-stale.js"]}\n');
+
+    await Promise.all([buildTheme(first), buildTheme(second)]);
+
+    for (const [root, manual, stale, otherManual] of [
+      [first, 'first-manual.txt', 'first-stale.js', 'second-manual.txt'],
+      [second, 'second-manual.txt', 'second-stale.js', 'first-manual.txt'],
+    ]) {
+      expect(existsSync(join(root, 'assets', manual))).toBe(true);
+      expect(existsSync(join(root, 'assets', stale))).toBe(false);
+      expect(existsSync(join(root, 'assets', otherManual))).toBe(false);
+      expect(existsSync(join(root, 'assets/vite-manifest.json'))).toBe(true);
+      expect(readFileSync(snippetPath(root), 'utf8')).toContain("{% when 'theme.ts' %}");
+      expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).not.toContain(stale);
+      expect(existsSync(lockPath(root))).toBe(false);
+    }
+  });
+
   it('emits opt-in build output and ownership diagnostics', () => {
     const root = fixture();
     const plugin = shopifyTheme({ entries, themeRoot: root, diagnostics: true }) as any;

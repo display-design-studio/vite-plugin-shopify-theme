@@ -314,6 +314,44 @@ Paths are resolved from Vite's configured root when one is supplied, otherwise f
 
 The theme root itself may be a symlink. Entry files and writable locations may also cross symlinks only when their real targets remain inside the canonical theme root. Escaping entry, snippet, asset, ownership-state, lock, manifest, and recovery paths are rejected before the plugin reads, writes, or deletes them. A stale development lock restores a snippet only when its recorded path remains contained and its generated hash still matches; otherwise the snippet is preserved.
 
+### Monorepos and multiple themes
+
+A Vite config at a workspace root can target one nested theme. `themeRoot` is resolved from Vite's configured `root`, and entry paths remain relative to the resulting theme boundary:
+
+```ts
+// vite.store.config.ts at the workspace root
+import { defineConfig } from 'vite';
+import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
+
+export default defineConfig({
+  root: '.',
+  plugins: [shopifyTheme({
+    themeRoot: 'packages/store-theme',
+    entries: {
+      'theme.css': 'frontend/theme.css',
+      'theme.ts': 'frontend/theme.ts',
+    },
+  })],
+});
+```
+
+Run it explicitly with `vite --config vite.store.config.ts`. Alternatively, place `vite.config.ts` inside the theme and omit `themeRoot`.
+
+For multiple themes, give each theme its own config and Vite process:
+
+```json
+{
+  "scripts": {
+    "build:store": "vite build --config vite.store.config.ts",
+    "build:outlet": "vite build --config vite.outlet.config.ts",
+    "dev:store": "vite --config vite.store.config.ts",
+    "dev:outlet": "vite --config vite.outlet.config.ts"
+  }
+}
+```
+
+Each process owns exactly one canonical `themeRoot`, with its own `assets`, generated snippet, `.vite-shopify-theme.json` state, and `.vite-shopify-theme.lock`. Different roots may build or serve concurrently; the same root deliberately rejects concurrent ownership. Do not put two `shopifyTheme()` instances for different roots in one Vite config: Vite has one effective root and one plugin-owned input/output contract. Explicit entry files must remain inside their theme root. Transitive shared modules follow Vite's normal resolution and filesystem-access rules; copying or staging sources belongs to the monorepo build, not this plugin.
+
 ### Theme App Extensions
 
 A [Theme App Extension](https://shopify.dev/docs/apps/build/online-store/theme-app-extensions/configuration) has its own `assets`, `blocks`, `snippets`, and `locales` directories. The plugin can build against that extension directory when its entry sources also live inside the same root:
