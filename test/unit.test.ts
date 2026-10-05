@@ -21,6 +21,13 @@ describe('option validation', () => {
     expect(() => normalizeOptions({ entries: {} }, root)).toThrow(/^\[shopify-theme:CONFIG_ENTRIES\]/);
   });
 
+  it('normalizes and validates optional diagnostic logging', () => {
+    const root = fixture();
+    expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' } }, root).diagnostics).toBe(false);
+    expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' }, diagnostics: true }, root).diagnostics).toBe(true);
+    expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' }, diagnostics: 'yes' as never }, root)).toThrow(/^\[shopify-theme:CONFIG_DIAGNOSTICS\]/);
+  });
+
   it('normalizes valid entries and an HTTPS origin', () => {
     const root = fixture();
     const value = normalizeOptions({ entries: { 'theme.ts': 'frontend/theme.ts' }, devOrigin: 'https://theme.example.test' }, root);

@@ -7,6 +7,8 @@ import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, r
 import type { LockOwner } from './ownership.js';
 import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, RESOLVED_HOT_RELOAD_CLIENT, sourceKey } from './snippets.js';
 
+type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT_ACTIVATED' | 'DEVELOPMENT_RESTORED' | 'HOT_RELOAD' | 'OWNERSHIP_ACQUIRED' | 'OWNERSHIP_RELEASED';
+
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
   let config: ResolvedConfig;
@@ -17,17 +19,24 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
   let cssCodeSplit = true;
+  const logDiagnostic = (event: DiagnosticEvent, message: string) => {
+    if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
+  };
   const restoreDevelopmentSnippet = () => {
-    if (!developmentActive || !existsSync(options.snippet)) return;
+    if (!developmentActive || !existsSync(options.snippet)) return false;
     const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet', true);
-    if (sha(readText(snippet, 'development snippet')) !== developmentHash) return;
+    if (sha(readText(snippet, 'development snippet')) !== developmentHash) return false;
     if (original?.exists) atomicWrite(snippet, original.content); else removeFile(snippet, 'temporary development snippet');
     developmentActive = false;
+    logDiagnostic('DEVELOPMENT_RESTORED', `snippet=${sourceKey(options.snippet, options.themeRoot)}`);
+    return true;
   };
   const release = () => {
     let failure: unknown;
     try { restoreDevelopmentSnippet(); } catch (error) { failure = error; }
-    try { releaseLock(options.themeRoot, owner); } catch (error) { failure ??= error; }
+    try {
+      if (releaseLock(options.themeRoot, owner)) logDiagnostic('OWNERSHIP_RELEASED', `mode=${owner?.mode} root=${options.themeRoot}`);
+    } catch (error) { failure ??= error; }
     owner = undefined;
     if (failure) throw failure;
   };
@@ -65,10 +74,14 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       cssCodeSplit = environment.command !== 'build' || user.build?.cssCodeSplit !== false;
       return viteConfig(options, user, !cssCodeSplit);
     },
-    configResolved(resolved) { config = resolved; },
+    configResolved(resolved) {
+      config = resolved;
+      logDiagnostic('CONFIG_RESOLVED', `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
+    },
     buildStart() {
       if (config.command !== 'build') return;
       owner = acquireLock(options.themeRoot, 'build');
+      logDiagnostic('OWNERSHIP_ACQUIRED', `mode=build root=${options.themeRoot}`);
       installProcessHandlers();
     },
     generateBundle: {
@@ -103,11 +116,13 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
+        let removed = 0;
         for (const file of previous.files) {
           const target = canonicalPathInside(options.themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
-          if (!current.has(file) && inside(assetsRoot, target) && existsSync(target)) removeFile(target, 'stale plugin-owned asset');
+          if (!current.has(file) && inside(assetsRoot, target) && existsSync(target)) { removeFile(target, 'stale plugin-owned asset'); removed += 1; }
         }
         atomicWrite(statePath, `${JSON.stringify({ files }, null, 2)}\n`);
+        logDiagnostic('BUILD_OUTPUT_WRITTEN', `assets=${files.length} removed=${removed} snippet=${sourceKey(snippet, options.themeRoot)}`);
       } catch (error) {
         let rollbackError: unknown;
         try {
@@ -127,6 +142,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     closeBundle() { if (config.command === 'build') cleanup(); },
     configureServer(server: ViteDevServer) {
       owner = acquireLock(options.themeRoot, 'development');
+      logDiagnostic('OWNERSHIP_ACQUIRED', `mode=development root=${options.themeRoot}`);
       installProcessHandlers();
       const activate = () => {
         try {
@@ -141,6 +157,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           owner.development = { snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
           const entryCount = Object.keys(options.entries).length;
+          logDiagnostic('DEVELOPMENT_ACTIVATED', `origin=${origin} entries=${entryCount} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
           config.logger.info(`[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`);
           if (options.devOrigin) {
             config.logger.warn(formatDiagnostic('DEV_EXTERNAL_ORIGIN', `External development origin ${origin} must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.`));
@@ -157,6 +174,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     handleHotUpdate(context) {
       if (!/\.(liquid|json)$/i.test(context.file) || !inside(options.themeRoot, context.file)) return;
       canonicalPathInside(options.themeRoot, context.file, 'Changed theme file');
+      logDiagnostic('HOT_RELOAD', `file=${sourceKey(context.file, options.themeRoot)}`);
       context.server.ws.send({ type: 'custom', event: HOT_RELOAD_EVENT, data: {} });
       return [];
     },

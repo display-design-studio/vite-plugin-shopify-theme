@@ -45,8 +45,8 @@ async function buildPostcssTheme(root: string, buildOptions: Record<string, unkn
   return build({ configFile: false, root, logLevel: 'silent', build: buildOptions, plugins: [shopifyTheme({ entries: postcssEntries, themeRoot: root })] });
 }
 
-function devServer(root: string, devOrigin?: string, configuredEntries: Record<string, string> = entries) {
-  const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, devOrigin }) as any;
+function devServer(root: string, devOrigin?: string, configuredEntries: Record<string, string> = entries, diagnostics = false) {
+  const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, devOrigin, diagnostics }) as any;
   const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
   const info = vi.fn();
   const warn = vi.fn();
@@ -59,6 +59,28 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
 }
 
 describe('isolated builds', () => {
+  it('emits opt-in build output and ownership diagnostics', () => {
+    const root = fixture();
+    const plugin = shopifyTheme({ entries, themeRoot: root, diagnostics: true }) as any;
+    plugin.config({ root }, { command: 'build', mode: 'production' });
+    const info = vi.fn();
+    plugin.configResolved({ command: 'build', build: { modulePreload: true }, logger: { info, warn: vi.fn() } });
+    plugin.buildStart();
+    writeFileSync(join(root, 'assets/vite-manifest.json'), JSON.stringify({
+      'frontend/theme.css': { file: 'theme.css', isEntry: true },
+      'frontend/theme.ts': { file: 'theme.js', isEntry: true },
+    }));
+    plugin.writeBundle({}, { 'theme.css': {}, 'theme.js': {}, 'vite-manifest.json': {} });
+    plugin.closeBundle();
+    plugin.closeBundle();
+    expect(info.mock.calls.flat()).toEqual([
+      expect.stringMatching(/^\[shopify-theme:diagnostic:CONFIG_RESOLVED\] command=build /),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_ACQUIRED\] mode=build /),
+      '[shopify-theme:diagnostic:BUILD_OUTPUT_WRITTEN] assets=2 removed=0 snippet=snippets/vite-tag.liquid',
+      expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_RELEASED\] mode=build /),
+    ]);
+  });
+
   it('builds explicit .pcss and .postcss entries as CSS assets and Liquid stylesheets', async () => {
     const root = fixture();
     await buildPostcssTheme(root);
@@ -226,6 +248,28 @@ describe('isolated builds', () => {
 });
 
 describe('development ownership and recovery', () => {
+  it('emits ordered opt-in lifecycle diagnostics without duplicate cleanup', () => {
+    const root = fixture();
+    const server = devServer(root, undefined, entries, true);
+    expect(server.info.mock.calls.flat()).toEqual([
+      expect.stringMatching(/^\[shopify-theme:diagnostic:CONFIG_RESOLVED\] command=serve /),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_ACQUIRED\] mode=development /),
+    ]);
+    server.httpServer.emit('listening');
+    server.plugin.handleHotUpdate({ file: join(root, 'templates/index.liquid'), server: { ws: { send: vi.fn() } } });
+    server.plugin.closeServer();
+    server.plugin.closeServer();
+    expect(server.info.mock.calls.flat()).toEqual([
+      expect.stringMatching(/^\[shopify-theme:diagnostic:CONFIG_RESOLVED\]/),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_ACQUIRED\]/),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:DEVELOPMENT_ACTIVATED\]/),
+      expect.stringMatching(/^\[shopify-theme\] Development assets ready/),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:HOT_RELOAD\] file=templates\/index\.liquid$/),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:DEVELOPMENT_RESTORED\]/),
+      expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_RELEASED\] mode=development /),
+    ]);
+  });
+
   it('owns before listening, restores on close, and supports restart', () => {
     const root = fixture();
     const original = readFileSync(snippetPath(root), 'utf8');

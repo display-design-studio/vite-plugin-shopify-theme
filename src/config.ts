@@ -13,6 +13,7 @@ export interface ShopifyThemeOptions {
   themeRoot?: string;
   snippet?: string;
   devOrigin?: string;
+  diagnostics?: boolean;
 }
 
 export interface NormalizedOptions {
@@ -20,13 +21,14 @@ export interface NormalizedOptions {
   themeRoot: string;
   snippet: string;
   devOrigin?: URL;
+  diagnostics: boolean;
 }
 
 export const VITE_MANIFEST = 'vite-manifest.json';
 
 export type DiagnosticCode =
   | 'BUILD_CLEANUP_FAILED' | 'BUILD_CSS_MISSING' | 'BUILD_ROLLBACK_FAILED'
-  | 'CONFIG_CSS_ENTRY_RESERVED' | 'CONFIG_DEV_ORIGIN' | 'CONFIG_ENTRIES' | 'CONFIG_SNIPPET' | 'CONFIG_THEME_ROOT' | 'CONFIG_VITE_CONFLICT'
+  | 'CONFIG_CSS_ENTRY_RESERVED' | 'CONFIG_DEV_ORIGIN' | 'CONFIG_DIAGNOSTICS' | 'CONFIG_ENTRIES' | 'CONFIG_SNIPPET' | 'CONFIG_THEME_ROOT' | 'CONFIG_VITE_CONFLICT'
   | 'DEV_EXTERNAL_ORIGIN' | 'DEV_ORIGIN_UNAVAILABLE' | 'DEV_OWNERSHIP_LOST'
   | 'FS_JSON_INVALID' | 'FS_READ_FAILED' | 'FS_REMOVE_FAILED' | 'FS_WRITE_FAILED'
   | 'LOCK_ACQUIRE_FAILED' | 'LOCK_ACTIVE' | 'LOCK_CHANGED' | 'LOCK_CREATE_FAILED' | 'LOCK_METADATA_INVALID' | 'LOCK_METADATA_MISSING' | 'LOCK_RECLAIM_FAILED' | 'LOCK_RELEASE_FAILED'
@@ -96,6 +98,7 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   }
   if (options.themeRoot !== undefined && typeof options.themeRoot !== 'string') throw diagnostic('CONFIG_THEME_ROOT', '`themeRoot` must be a filesystem path string.');
   if (options.snippet !== undefined && typeof options.snippet !== 'string') throw diagnostic('CONFIG_SNIPPET', '`snippet` must be a filesystem path string relative to `themeRoot`.');
+  if (options.diagnostics !== undefined && typeof options.diagnostics !== 'boolean') throw diagnostic('CONFIG_DIAGNOSTICS', '`diagnostics` must be a boolean.');
   const configuredRoot = resolve(cwd, options.themeRoot ?? '.');
   let themeRoot: string;
   try { themeRoot = realpathSync.native(configuredRoot); } catch (error) {
@@ -134,7 +137,7 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
       throw diagnostic('CONFIG_DEV_ORIGIN', `devOrigin "${options.devOrigin}" must use HTTPS and contain only an origin, without credentials, path, query, or hash.`);
     }
   }
-  return { entries, themeRoot, snippet, devOrigin };
+  return { entries, themeRoot, snippet, devOrigin, diagnostics: options.diagnostics ?? false };
 }
 
 function configurationConflict(key: string, actual: unknown, expected: string): Error {
