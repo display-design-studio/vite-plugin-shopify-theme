@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'shopify-theme-'));
   mkdirSync(join(root, 'frontend'), { recursive: true });
   mkdirSync(join(root, 'snippets'));
+  mkdirSync(join(root, 'assets'));
   writeFileSync(join(root, 'frontend/theme.ts'), 'export {}');
   writeFileSync(join(root, 'frontend/theme.css'), 'body{}');
   return realpathSync.native(root);
@@ -26,6 +27,30 @@ describe('option validation', () => {
     expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' } }, root).diagnostics).toBe(false);
     expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' }, diagnostics: true }, root).diagnostics).toBe(true);
     expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' }, diagnostics: 'yes' as never }, root)).toThrow(/^\[shopify-theme:CONFIG_DIAGNOSTICS\]/);
+  });
+
+  it('reports missing and non-directory Shopify output structure', () => {
+    const missingAssets = fixture();
+    rmSync(join(missingAssets, 'assets'), { recursive: true });
+    expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' } }, missingAssets)).toThrow(/^\[shopify-theme:THEME_STRUCTURE_INVALID\].*Shopify assets directory.*Create this directory.*themeRoot/);
+
+    const fileAssets = fixture();
+    rmSync(join(fileAssets, 'assets'), { recursive: true });
+    writeFileSync(join(fileAssets, 'assets'), 'not a directory');
+    expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' } }, fileAssets)).toThrow(/^\[shopify-theme:THEME_STRUCTURE_INVALID\].*Shopify assets directory.*not a directory/);
+
+    const missingSnippets = fixture();
+    expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' }, snippet: 'liquid/generated/vite.liquid' }, missingSnippets)).toThrow(/^\[shopify-theme:THEME_STRUCTURE_INVALID\].*configured snippet directory.*Create this directory/);
+
+    const fileSnippets = fixture();
+    writeFileSync(join(fileSnippets, 'liquid'), 'not a directory');
+    expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' }, snippet: 'liquid/vite.liquid' }, fileSnippets)).toThrow(/^\[shopify-theme:THEME_STRUCTURE_INVALID\].*configured snippet directory.*not a directory/);
+  });
+
+  it('accepts an existing custom snippet directory', () => {
+    const root = fixture();
+    mkdirSync(join(root, 'liquid/generated'), { recursive: true });
+    expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' }, snippet: 'liquid/generated/vite.liquid' }, root).snippet).toBe(join(root, 'liquid/generated/vite.liquid'));
   });
 
   it('normalizes valid entries and an HTTPS origin', () => {

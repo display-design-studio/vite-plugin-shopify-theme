@@ -357,22 +357,12 @@ describe('development ownership and recovery', () => {
     expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
   });
 
-  it('reports an atomic snippet write failure and releases startup ownership', () => {
+  it('rejects a non-directory snippet parent before taking startup ownership', () => {
     const root = fixture();
     writeFileSync(join(root, 'blocked'), 'not a directory');
     const plugin = shopifyTheme({ entries, themeRoot: root, snippet: 'blocked/vite-tag.liquid', devOrigin: 'https://vite.example.test' }) as any;
-    const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
-    const info = vi.fn();
-    const warn = vi.fn();
-    plugin.configResolved({ command: 'serve', logger: { info, warn } });
-    const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
-    httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
-    plugin.configureServer({ config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer });
-    expect(() => httpServer.emit('listening')).toThrow(/atomically write.*blocked[\\/]vite-tag\.liquid.*parent directory is writable/i);
-    expect(info).not.toHaveBeenCalled();
-    expect(warn).not.toHaveBeenCalled();
+    expect(() => plugin.config({ root }, { command: 'serve', mode: 'development' })).toThrow(/^\[shopify-theme:THEME_STRUCTURE_INVALID\].*configured snippet directory.*not a directory/i);
     expect(existsSync(lockPath(root))).toBe(false);
-    expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 });
 

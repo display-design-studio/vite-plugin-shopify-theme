@@ -34,7 +34,7 @@ export type DiagnosticCode =
   | 'LOCK_ACQUIRE_FAILED' | 'LOCK_ACTIVE' | 'LOCK_CHANGED' | 'LOCK_CREATE_FAILED' | 'LOCK_METADATA_INVALID' | 'LOCK_METADATA_MISSING' | 'LOCK_RECLAIM_FAILED' | 'LOCK_RELEASE_FAILED'
   | 'MANIFEST_ENTRY_MISSING' | 'MANIFEST_IMPORT_MISSING' | 'MANIFEST_INVALID'
   | 'PATH_MISSING' | 'PATH_OUTSIDE_THEME' | 'PATH_RESOLUTION_FAILED'
-  | 'STATE_INVALID';
+  | 'STATE_INVALID' | 'THEME_STRUCTURE_INVALID';
 
 export function isStyleEntry(path: string): boolean { return STYLE_ENTRY_RE.test(path); }
 
@@ -92,6 +92,20 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function validateThemeDirectory(root: string, path: string, purpose: string): void {
+  if (!existsSync(path)) {
+    throw diagnostic('THEME_STRUCTURE_INVALID', `Theme root "${root}" is missing the ${purpose} at "${path}". Create this directory or correct \`themeRoot\`.`);
+  }
+  let status;
+  try { status = statSync(path); } catch (error) {
+    throw diagnostic('THEME_STRUCTURE_INVALID', `Could not inspect the ${purpose} at "${path}" (${errorDetail(error)}). Check that it is accessible or correct \`themeRoot\`.`, error);
+  }
+  if (!status.isDirectory()) {
+    throw diagnostic('THEME_STRUCTURE_INVALID', `The ${purpose} at "${path}" is not a directory. Replace it with a directory or correct \`themeRoot\`.`);
+  }
+  canonicalPathInside(root, path, purpose, true);
+}
+
 export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd()): NormalizedOptions {
   if (!options || !isRecord(options.entries) || Object.keys(options.entries).length === 0) {
     throw diagnostic('CONFIG_ENTRIES', '`entries` must be an object containing at least one Liquid name/source mapping, for example `{ "theme.ts": "frontend/theme.ts" }`.');
@@ -105,9 +119,11 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
     throw diagnostic('CONFIG_THEME_ROOT', `Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
   }
   if (!statSync(themeRoot).isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
+  validateThemeDirectory(themeRoot, resolve(themeRoot, 'assets'), 'Shopify assets directory');
   const configuredSnippet = options.snippet ?? 'snippets/vite-tag.liquid';
   const unresolvedSnippet = resolve(themeRoot, configuredSnippet);
   if (!inside(themeRoot, unresolvedSnippet)) throw diagnostic('CONFIG_SNIPPET', `Configured snippet "${configuredSnippet}" resolves outside theme root "${themeRoot}". Choose a snippet path inside the theme.`);
+  validateThemeDirectory(themeRoot, dirname(unresolvedSnippet), 'configured snippet directory');
   const snippet = canonicalPathInside(themeRoot, unresolvedSnippet, `Configured snippet "${configuredSnippet}"`);
   const entries: Record<string, string> = {};
   const sources = new Set<string>();
