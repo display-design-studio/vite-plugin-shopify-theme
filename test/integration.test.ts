@@ -110,7 +110,7 @@ describe('isolated builds', () => {
     writeFileSync(join(root, 'assets/vite-manifest.json'), JSON.stringify({
       'frontend/theme.ts': { file: 'theme.js', isEntry: true },
     }));
-    expect(() => plugin.writeBundle({}, {})).toThrow(/aggregated CSS asset.*manifest entry "style\.css".*clean build/i);
+    expect(() => plugin.writeBundle({}, {})).toThrow(/^\[shopify-theme:BUILD_CSS_MISSING\].*aggregated CSS asset.*manifest entry "style\.css".*clean build/i);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
     expect(existsSync(lockPath(root))).toBe(false);
   });
@@ -191,7 +191,7 @@ describe('isolated builds', () => {
     const root = fixture();
     const originalSnippet = readFileSync(snippetPath(root), 'utf8');
     writeFileSync(statePath(root), state);
-    await expect(buildTheme(root)).rejects.toThrow(/(parse.*ownership state|ownership state.*invalid structure)/i);
+    await expect(buildTheme(root)).rejects.toThrow(/\[shopify-theme:(FS_JSON_INVALID|STATE_INVALID)\].*(parse.*ownership state|ownership state.*invalid structure)/i);
     expect(readFileSync(statePath(root), 'utf8')).toBe(state);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(originalSnippet);
     expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
@@ -246,7 +246,7 @@ describe('development ownership and recovery', () => {
     expect(restarted.warn).not.toHaveBeenCalled();
     restarted.httpServer.emit('listening');
     expect(restarted.info).toHaveBeenCalledExactlyOnceWith('[shopify-theme] Development assets ready at https://vite.example.test (2 entries; snippet: snippets/vite-tag.liquid).');
-    expect(restarted.warn).toHaveBeenCalledExactlyOnceWith('[shopify-theme] External development origin https://vite.example.test must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.');
+    expect(restarted.warn).toHaveBeenCalledExactlyOnceWith('[shopify-theme:DEV_EXTERNAL_ORIGIN] External development origin https://vite.example.test must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.');
     expect(restarted.contribution.server.ws).toMatchObject({ protocol: 'wss', host: 'vite.example.test', clientPort: 443 });
     restarted.httpServer.emit('close');
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
@@ -263,8 +263,8 @@ describe('development ownership and recovery', () => {
   it('rejects live development/build contention with an actionable diagnostic', async () => {
     const root = fixture();
     const active = devServer(root);
-    expect(() => devServer(root)).toThrow(new RegExp(`development process ${process.pid}`));
-    await expect(buildTheme(root)).rejects.toThrow(new RegExp(`development process ${process.pid}`));
+    expect(() => devServer(root)).toThrow(new RegExp(`^\\[shopify-theme:LOCK_ACTIVE\\].*development process ${process.pid}`));
+    await expect(buildTheme(root)).rejects.toThrow(new RegExp(`\\[shopify-theme:LOCK_ACTIVE\\].*development process ${process.pid}`));
     active.plugin.closeServer();
   });
 

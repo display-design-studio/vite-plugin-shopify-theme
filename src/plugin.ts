@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
-import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
+import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, formatDiagnostic, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
@@ -92,7 +92,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         const files = Object.keys(bundle).filter((file) => file !== VITE_MANIFEST).sort();
         const aggregateCss = cssCodeSplit ? undefined : manifest[CSS_BUNDLE_ENTRY]?.file;
         if (!cssCodeSplit && (!aggregateCss || !aggregateCss.endsWith('.css'))) {
-          throw diagnostic(`Vite did not generate the aggregated CSS asset expected at manifest entry "${CSS_BUNDLE_ENTRY}". Run a clean build and confirm that build.cssCodeSplit remains false.`);
+          throw diagnostic('BUILD_CSS_MISSING', `Vite did not generate the aggregated CSS asset expected at manifest entry "${CSS_BUNDLE_ENTRY}". Run a clean build and confirm that build.cssCodeSplit remains false.`);
         }
         const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Generated Liquid snippet');
         const originalSnippet = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
@@ -117,9 +117,9 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           }
         } catch (failure) { rollbackError = failure; }
         try { cleanup(); } catch (cleanupError) {
-          throw diagnostic(`Build processing failed and ownership cleanup also failed (${errorDetail(cleanupError)}). Resolve the cleanup error before retrying.`, new AggregateError([error, cleanupError]));
+          throw diagnostic('BUILD_CLEANUP_FAILED', `Build processing failed and ownership cleanup also failed (${errorDetail(cleanupError)}). Resolve the cleanup error before retrying.`, new AggregateError([error, cleanupError]));
         }
-        if (rollbackError) throw diagnostic(`Build processing failed and the prior Liquid snippet could not be restored (${errorDetail(rollbackError)}). Preserve the snippet manually before retrying.`, new AggregateError([error, rollbackError]));
+        if (rollbackError) throw diagnostic('BUILD_ROLLBACK_FAILED', `Build processing failed and the prior Liquid snippet could not be restored (${errorDetail(rollbackError)}). Preserve the snippet manually before retrying.`, new AggregateError([error, rollbackError]));
         throw error;
       }
     },
@@ -137,13 +137,13 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           atomicWrite(snippet, content);
           developmentHash = sha(content);
           developmentActive = true;
-          if (!owner) throw diagnostic(`Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
+          if (!owner) throw diagnostic('DEV_OWNERSHIP_LOST', `Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
           owner.development = { snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
           const entryCount = Object.keys(options.entries).length;
           config.logger.info(`[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`);
           if (options.devOrigin) {
-            config.logger.warn(`[shopify-theme] External development origin ${origin} must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.`);
+            config.logger.warn(formatDiagnostic('DEV_EXTERNAL_ORIGIN', `External development origin ${origin} must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.`));
           }
         } catch (error) {
           try { cleanup(); } catch { /* preserve startup diagnostic */ }
@@ -165,7 +165,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
 
 function localOrigin(server: ViteDevServer): string {
   const address = server.httpServer?.address();
-  if (!address || typeof address === 'string') throw diagnostic('Could not determine the Vite development origin because the HTTP server has no TCP address. Wait for the server to listen or configure `devOrigin`.');
+  if (!address || typeof address === 'string') throw diagnostic('DEV_ORIGIN_UNAVAILABLE', 'Could not determine the Vite development origin because the HTTP server has no TCP address. Wait for the server to listen or configure `devOrigin`.');
   const configuredHost = server.config.server.host;
   const host = typeof configuredHost === 'string' && configuredHost !== '0.0.0.0' && configuredHost !== '::' ? configuredHost : 'localhost';
   return `${server.config.server.https ? 'https' : 'http'}://${host.includes(':') ? `[${host}]` : host}:${address.port}`;

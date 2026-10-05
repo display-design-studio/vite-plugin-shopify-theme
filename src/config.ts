@@ -24,6 +24,16 @@ export interface NormalizedOptions {
 
 export const VITE_MANIFEST = 'vite-manifest.json';
 
+export type DiagnosticCode =
+  | 'BUILD_CLEANUP_FAILED' | 'BUILD_CSS_MISSING' | 'BUILD_ROLLBACK_FAILED'
+  | 'CONFIG_CSS_ENTRY_RESERVED' | 'CONFIG_DEV_ORIGIN' | 'CONFIG_ENTRIES' | 'CONFIG_SNIPPET' | 'CONFIG_THEME_ROOT' | 'CONFIG_VITE_CONFLICT'
+  | 'DEV_EXTERNAL_ORIGIN' | 'DEV_ORIGIN_UNAVAILABLE' | 'DEV_OWNERSHIP_LOST'
+  | 'FS_JSON_INVALID' | 'FS_READ_FAILED' | 'FS_REMOVE_FAILED' | 'FS_WRITE_FAILED'
+  | 'LOCK_ACQUIRE_FAILED' | 'LOCK_ACTIVE' | 'LOCK_CHANGED' | 'LOCK_CREATE_FAILED' | 'LOCK_METADATA_INVALID' | 'LOCK_METADATA_MISSING' | 'LOCK_RECLAIM_FAILED' | 'LOCK_RELEASE_FAILED'
+  | 'MANIFEST_ENTRY_MISSING' | 'MANIFEST_IMPORT_MISSING' | 'MANIFEST_INVALID'
+  | 'PATH_MISSING' | 'PATH_OUTSIDE_THEME' | 'PATH_RESOLUTION_FAILED'
+  | 'STATE_INVALID';
+
 export function isStyleEntry(path: string): boolean { return STYLE_ENTRY_RE.test(path); }
 
 export function inside(root: string, path: string): boolean {
@@ -34,32 +44,36 @@ export function inside(root: string, path: string): boolean {
 /** Resolve symlinks in an existing path, or in the nearest existing ancestor. */
 export function canonicalPathInside(root: string, path: string, purpose: string, mustExist = false): string {
   const absolute = resolve(path);
-  if (!inside(root, absolute)) throw diagnostic(`${purpose} resolves outside theme root "${root}".`);
+  if (!inside(root, absolute)) throw diagnostic('PATH_OUTSIDE_THEME', `${purpose} resolves outside theme root "${root}".`);
   let ancestor = absolute;
   while (!existsSync(ancestor)) {
     try {
       if (lstatSync(ancestor).isSymbolicLink()) realpathSync.native(ancestor);
     } catch (error) {
-      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw diagnostic(`Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw diagnostic('PATH_RESOLUTION_FAILED', `Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
     }
     const parent = dirname(ancestor);
     if (parent === ancestor) break;
     ancestor = parent;
   }
-  if (mustExist && !existsSync(absolute)) throw diagnostic(`${purpose} was not found at "${absolute}".`);
+  if (mustExist && !existsSync(absolute)) throw diagnostic('PATH_MISSING', `${purpose} was not found at "${absolute}".`);
   let canonical: string;
   try {
     const canonicalAncestor = realpathSync.native(ancestor);
     canonical = ancestor === absolute ? canonicalAncestor : resolve(canonicalAncestor, relative(ancestor, absolute));
   } catch (error) {
-    throw diagnostic(`Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
+    throw diagnostic('PATH_RESOLUTION_FAILED', `Could not resolve ${purpose} at "${absolute}" (${errorDetail(error)}).`, error);
   }
-  if (!inside(root, canonical)) throw diagnostic(`${purpose} at "${absolute}" resolves outside canonical theme root "${root}".`);
+  if (!inside(root, canonical)) throw diagnostic('PATH_OUTSIDE_THEME', `${purpose} at "${absolute}" resolves outside canonical theme root "${root}".`);
   return canonical;
 }
 
-export function diagnostic(message: string, cause?: unknown): Error {
-  return new Error(`[shopify-theme] ${message}`, cause === undefined ? undefined : { cause });
+export function formatDiagnostic(code: DiagnosticCode, message: string): string {
+  return `[shopify-theme:${code}] ${message}`;
+}
+
+export function diagnostic(code: DiagnosticCode, message: string, cause?: unknown): Error {
+  return new Error(formatDiagnostic(code, message), cause === undefined ? undefined : { cause });
 }
 
 export function errorDetail(error: unknown): string {
@@ -78,53 +92,53 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd()): NormalizedOptions {
   if (!options || !isRecord(options.entries) || Object.keys(options.entries).length === 0) {
-    throw diagnostic('`entries` must be an object containing at least one Liquid name/source mapping, for example `{ "theme.ts": "frontend/theme.ts" }`.');
+    throw diagnostic('CONFIG_ENTRIES', '`entries` must be an object containing at least one Liquid name/source mapping, for example `{ "theme.ts": "frontend/theme.ts" }`.');
   }
-  if (options.themeRoot !== undefined && typeof options.themeRoot !== 'string') throw diagnostic('`themeRoot` must be a filesystem path string.');
-  if (options.snippet !== undefined && typeof options.snippet !== 'string') throw diagnostic('`snippet` must be a filesystem path string relative to `themeRoot`.');
+  if (options.themeRoot !== undefined && typeof options.themeRoot !== 'string') throw diagnostic('CONFIG_THEME_ROOT', '`themeRoot` must be a filesystem path string.');
+  if (options.snippet !== undefined && typeof options.snippet !== 'string') throw diagnostic('CONFIG_SNIPPET', '`snippet` must be a filesystem path string relative to `themeRoot`.');
   const configuredRoot = resolve(cwd, options.themeRoot ?? '.');
   let themeRoot: string;
   try { themeRoot = realpathSync.native(configuredRoot); } catch (error) {
-    throw diagnostic(`Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
+    throw diagnostic('CONFIG_THEME_ROOT', `Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
   }
-  if (!statSync(themeRoot).isDirectory()) throw diagnostic(`Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
+  if (!statSync(themeRoot).isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
   const configuredSnippet = options.snippet ?? 'snippets/vite-tag.liquid';
   const unresolvedSnippet = resolve(themeRoot, configuredSnippet);
-  if (!inside(themeRoot, unresolvedSnippet)) throw diagnostic(`Configured snippet "${configuredSnippet}" resolves outside theme root "${themeRoot}". Choose a snippet path inside the theme.`);
+  if (!inside(themeRoot, unresolvedSnippet)) throw diagnostic('CONFIG_SNIPPET', `Configured snippet "${configuredSnippet}" resolves outside theme root "${themeRoot}". Choose a snippet path inside the theme.`);
   const snippet = canonicalPathInside(themeRoot, unresolvedSnippet, `Configured snippet "${configuredSnippet}"`);
   const entries: Record<string, string> = {};
   const sources = new Set<string>();
   for (const [name, source] of Object.entries(options.entries)) {
     if (!LIQUID_ENTRY_NAME_RE.test(name)) {
-      throw diagnostic(`Liquid entry name ${JSON.stringify(name)} is invalid. Use only ASCII letters, digits, dots, underscores, and hyphens, starting with a letter or digit, such as "theme.ts".`);
+      throw diagnostic('CONFIG_ENTRIES', `Liquid entry name ${JSON.stringify(name)} is invalid. Use only ASCII letters, digits, dots, underscores, and hyphens, starting with a letter or digit, such as "theme.ts".`);
     }
-    if (typeof source !== 'string' || source.length === 0) throw diagnostic(`Entry "${name}" must map to a non-empty source path string.`);
+    if (typeof source !== 'string' || source.length === 0) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" must map to a non-empty source path string.`);
     const unresolved = resolve(themeRoot, source);
-    if (!inside(themeRoot, unresolved)) throw diagnostic(`Entry "${name}" source "${source}" resolves outside theme root "${themeRoot}". Choose a source inside the theme.`);
-    if (!existsSync(unresolved)) throw diagnostic(`Entry "${name}" source "${source}" was not found at "${unresolved}". Create the file or correct the entry path.`);
+    if (!inside(themeRoot, unresolved)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" source "${source}" resolves outside theme root "${themeRoot}". Choose a source inside the theme.`);
+    if (!existsSync(unresolved)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" source "${source}" was not found at "${unresolved}". Create the file or correct the entry path.`);
     const absolute = canonicalPathInside(themeRoot, unresolved, `Entry "${name}" source "${source}"`, true);
     let sourceStat;
     try { sourceStat = statSync(absolute); } catch (error) {
-      throw diagnostic(`Could not inspect entry "${name}" at "${absolute}" (${errorDetail(error)}). Check that it is readable and retry.`, error);
+      throw diagnostic('CONFIG_ENTRIES', `Could not inspect entry "${name}" at "${absolute}" (${errorDetail(error)}). Check that it is readable and retry.`, error);
     }
-    if (!sourceStat.isFile()) throw diagnostic(`Entry "${name}" source "${source}" resolves to "${absolute}", which is not a file. Point the entry to a source file.`);
-    if (sources.has(absolute)) throw diagnostic(`Entry "${name}" duplicates source "${source}" resolved at "${absolute}". Each Liquid entry must use a distinct source file.`);
+    if (!sourceStat.isFile()) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" source "${source}" resolves to "${absolute}", which is not a file. Point the entry to a source file.`);
+    if (sources.has(absolute)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" duplicates source "${source}" resolved at "${absolute}". Each Liquid entry must use a distinct source file.`);
     sources.add(absolute);
     entries[name] = absolute;
   }
   let devOrigin: URL | undefined;
   if (options.devOrigin) {
-    if (typeof options.devOrigin !== 'string') throw diagnostic(`devOrigin ${displayValue(options.devOrigin)} must be an absolute HTTPS origin string.`);
-    try { devOrigin = new URL(options.devOrigin); } catch (error) { throw diagnostic(`devOrigin ${JSON.stringify(options.devOrigin)} is not a valid absolute HTTPS origin. Use a value such as "https://vite.example.com".`, error); }
+    if (typeof options.devOrigin !== 'string') throw diagnostic('CONFIG_DEV_ORIGIN', `devOrigin ${displayValue(options.devOrigin)} must be an absolute HTTPS origin string.`);
+    try { devOrigin = new URL(options.devOrigin); } catch (error) { throw diagnostic('CONFIG_DEV_ORIGIN', `devOrigin ${JSON.stringify(options.devOrigin)} is not a valid absolute HTTPS origin. Use a value such as "https://vite.example.com".`, error); }
     if (devOrigin.protocol !== 'https:' || devOrigin.username || devOrigin.password || devOrigin.pathname !== '/' || devOrigin.search || devOrigin.hash) {
-      throw diagnostic(`devOrigin "${options.devOrigin}" must use HTTPS and contain only an origin, without credentials, path, query, or hash.`);
+      throw diagnostic('CONFIG_DEV_ORIGIN', `devOrigin "${options.devOrigin}" must use HTTPS and contain only an origin, without credentials, path, query, or hash.`);
     }
   }
   return { entries, themeRoot, snippet, devOrigin };
 }
 
 function configurationConflict(key: string, actual: unknown, expected: string): Error {
-  return diagnostic(`Vite option "${key}" is ${displayValue(actual)}, but the Shopify theme plugin requires ${expected}. Remove "${key}" from the user config and let the plugin set it.`);
+  return diagnostic('CONFIG_VITE_CONFLICT', `Vite option "${key}" is ${displayValue(actual)}, but the Shopify theme plugin requires ${expected}. Remove "${key}" from the user config and let the plugin set it.`);
 }
 
 export function viteConfig(options: NormalizedOptions, user: UserConfig, aggregateCss = false): UserConfig {
@@ -142,7 +156,7 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
     ws: { protocol: 'wss' as const, host: options.devOrigin.hostname, clientPort: Number(options.devOrigin.port || 443) },
   } : undefined;
   if (aggregateCss && CSS_BUNDLE_ENTRY in options.entries && !isStyleEntry(options.entries[CSS_BUNDLE_ENTRY])) {
-    throw diagnostic(`Liquid entry name "${CSS_BUNDLE_ENTRY}" is reserved for the aggregated stylesheet when build.cssCodeSplit is false. Rename that non-stylesheet entry and retry.`);
+    throw diagnostic('CONFIG_CSS_ENTRY_RESERVED', `Liquid entry name "${CSS_BUNDLE_ENTRY}" is reserved for the aggregated stylesheet when build.cssCodeSplit is false. Rename that non-stylesheet entry and retry.`);
   }
   const buildEntries = aggregateCss
     ? Object.fromEntries([

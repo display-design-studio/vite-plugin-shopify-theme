@@ -16,6 +16,11 @@ function fixture() {
 }
 
 describe('option validation', () => {
+  it('prefixes configuration diagnostics with a stable searchable code', () => {
+    const root = fixture();
+    expect(() => normalizeOptions({ entries: {} }, root)).toThrow(/^\[shopify-theme:CONFIG_ENTRIES\]/);
+  });
+
   it('normalizes valid entries and an HTTPS origin', () => {
     const root = fixture();
     const value = normalizeOptions({ entries: { 'theme.ts': 'frontend/theme.ts' }, devOrigin: 'https://theme.example.test' }, root);
@@ -85,6 +90,10 @@ describe('manifest rendering', () => {
     '_deep.js': { file: 'deep-c.js', css: ['shared-b.css'] },
     'frontend/theme.css': { file: 'theme-d.css', isEntry: true },
   } satisfies Manifest;
+
+  it('codes missing manifest entries without losing their context', () => {
+    expect(() => collectManifestTags({}, ['frontend/missing.ts'])).toThrow(/^\[shopify-theme:MANIFEST_ENTRY_MISSING\].*frontend\/missing\.ts/);
+  });
 
   it('walks imports recursively and deduplicates in deterministic dependency order', () => {
     expect(collectManifestTags(manifest, ['frontend/theme.ts'])).toEqual({
