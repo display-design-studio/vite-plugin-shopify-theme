@@ -37,6 +37,40 @@ body:
       description: Provide a repository link or exact commands and steps.
     validations:
       required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: First failing boundary
+      description: Choose the earliest observable failure. Later failures may be downstream effects.
+      options:
+        - Vite or plugin build/development processing
+        - Shopify CLI, Liquid, theme validation, or storefront rendering
+        - Browser, HTTPS tunnel, or HMR WebSocket
+        - Unsure
+    validations:
+      required: true
+  - type: input
+    id: diagnostic_codes
+    attributes:
+      label: Plugin diagnostic codes
+      description: List any codes from messages such as [shopify-theme:THEME_STRUCTURE_INVALID], or write "None".
+      placeholder: THEME_STRUCTURE_INVALID
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Boundary evidence
+      description: Record the first failing command, request, or file. As relevant, include build results, generated manifest/snippet presence, Shopify Theme Check results, direct Vite URL probes, and HMR WebSocket status. Mark checks that do not apply as N/A.
+      placeholder: |
+        First failing command, request, or file:
+        npm run build:
+        Generated manifest and snippet:
+        shopify theme check:
+        Direct @vite/client and entry requests:
+        HMR WebSocket:
+    validations:
+      required: true
   - type: textarea
     id: expected
     attributes:
@@ -56,6 +90,8 @@ body:
       label: Checks
       options:
         - label: I searched existing issues for duplicates.
+          required: true
+        - label: I completed the relevant checks from the troubleshooting report checklist.
           required: true
         - label: I removed all credentials, private URLs, and customer data.
           required: true
