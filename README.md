@@ -97,7 +97,7 @@ The package is intentionally narrow: it does not discover entries, run Shopify C
 | Option | Type | Default | Contract and behavior |
 | --- | --- | --- | --- |
 | `entries` | `Record<string, string>` | Required | A non-empty map of Liquid entry names to source files. Names must match `[A-Za-z0-9][A-Za-z0-9._-]*`; sources must be distinct existing files inside `themeRoot`. This map is authoritative and is not supplemented by entry discovery. |
-| `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory, and canonicalized through its real path. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
+| `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory, and canonicalized through its real path. Its `assets` directory and the configured snippet's parent directory must already exist. Entries, generated files, ownership state, and the process lock are scoped to this directory. |
 | `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid file, resolved relative to and required to remain inside `themeRoot`. Render the corresponding snippet name from Liquid. The file is generated on build and temporarily replaced during development. |
 | `devOrigin` | `string` | The listening Vite server origin | Public origin used in development tags. It must be an absolute HTTPS origin with no credentials, path, query, or hash. Use it for a separately managed tunnel; the plugin configures Vite for that origin but does not start the tunnel. |
 | `diagnostics` | `boolean` | `false` | Emits opt-in lifecycle diagnostics through Vite's `info` logger. Generated output and ownership behavior are unchanged. |
@@ -396,6 +396,7 @@ Plugin errors and warnings begin with `[shopify-theme:<CODE>]`. The code is stab
 | `CONFIG_ENTRIES`, `CONFIG_THEME_ROOT`, `CONFIG_SNIPPET`, `CONFIG_DEV_ORIGIN`, `CONFIG_DIAGNOSTICS` | Invalid plugin options or unsafe configured paths |
 | `CONFIG_VITE_CONFLICT`, `CONFIG_CSS_ENTRY_RESERVED` | User Vite configuration conflicts with plugin-owned settings |
 | `PATH_OUTSIDE_THEME`, `PATH_RESOLUTION_FAILED`, `PATH_MISSING` | A generated, recorded, or changed path is unsafe or unavailable |
+| `THEME_STRUCTURE_INVALID` | The theme's `assets` directory or configured snippet directory is missing or is not a directory |
 | `FS_READ_FAILED`, `FS_JSON_INVALID`, `FS_REMOVE_FAILED`, `FS_WRITE_FAILED` | A required filesystem operation failed |
 | `STATE_INVALID` | Generated-asset ownership state has an unsafe structure |
 | `MANIFEST_INVALID`, `MANIFEST_ENTRY_MISSING`, `MANIFEST_IMPORT_MISSING` | Vite manifest data is invalid or incomplete |
