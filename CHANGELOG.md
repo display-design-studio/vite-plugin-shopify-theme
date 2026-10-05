@@ -7,6 +7,7 @@ All notable changes to this package are documented here.
 ### Added
 
 - Added stable, searchable diagnostic codes to every plugin-authored error and warning, with a documented code reference for troubleshooting.
+- Added opt-in `diagnostics` lifecycle logging through Vite's logger, including stable events for configuration, ownership, build output, development restoration, and hot reloads.
 
 ## 0.3.0
 

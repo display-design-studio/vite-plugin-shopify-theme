@@ -125,7 +125,8 @@ export function updateLock(root: string, owner: LockOwner): void {
   atomicWrite(ownerPath(root), `${JSON.stringify(owner, null, 2)}\n`);
 }
 
-export function releaseLock(root: string, owner: LockOwner | undefined): void {
-  if (!owner || readOwner(root)?.token !== owner.token) return;
+export function releaseLock(root: string, owner: LockOwner | undefined): boolean {
+  if (!owner || readOwner(root)?.token !== owner.token) return false;
   try { rmSync(lockPath(root), { recursive: true }); } catch (error) { throw diagnostic('LOCK_RELEASE_FAILED', `Could not release theme ownership at "${lockPath(root)}" (${errorDetail(error)}). Remove the lock directory after confirming this process has stopped.`, error); }
+  return true;
 }

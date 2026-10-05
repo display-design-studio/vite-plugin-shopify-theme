@@ -100,8 +100,11 @@ The package is intentionally narrow: it does not discover entries, run Shopify C
 | `themeRoot` | `string` | `.` | Theme directory, resolved from Vite's configured `root` when present, otherwise from the current working directory, and canonicalized through its real path. Entries, the snippet, `assets`, ownership state, and the process lock are scoped to this directory. |
 | `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid file, resolved relative to and required to remain inside `themeRoot`. Render the corresponding snippet name from Liquid. The file is generated on build and temporarily replaced during development. |
 | `devOrigin` | `string` | The listening Vite server origin | Public origin used in development tags. It must be an absolute HTTPS origin with no credentials, path, query, or hash. Use it for a separately managed tunnel; the plugin configures Vite for that origin but does not start the tunnel. |
+| `diagnostics` | `boolean` | `false` | Emits opt-in lifecycle diagnostics through Vite's `info` logger. Generated output and ownership behavior are unchanged. |
 
 `entries` is authoritative. Entry keys do not need to match source filenames, but they are the exact values supplied as the snippet's `entry` argument. A stylesheet is recognized from its source extension, not its entry key.
+
+With `diagnostics: true`, lifecycle messages use the stable prefix `[shopify-theme:diagnostic:<EVENT>]`. Events cover resolved configuration, ownership acquisition and release, production output and stale cleanup counts, development snippet activation and restoration, and theme-file hot reloads. They follow Vite's logger and `logLevel`; the option writes nothing directly to the console and is silent by default.
 
 ### Vite configuration owned by the plugin
 
@@ -390,7 +393,7 @@ Plugin errors and warnings begin with `[shopify-theme:<CODE>]`. The code is stab
 
 | Codes | Meaning |
 | --- | --- |
-| `CONFIG_ENTRIES`, `CONFIG_THEME_ROOT`, `CONFIG_SNIPPET`, `CONFIG_DEV_ORIGIN` | Invalid plugin options or unsafe configured paths |
+| `CONFIG_ENTRIES`, `CONFIG_THEME_ROOT`, `CONFIG_SNIPPET`, `CONFIG_DEV_ORIGIN`, `CONFIG_DIAGNOSTICS` | Invalid plugin options or unsafe configured paths |
 | `CONFIG_VITE_CONFLICT`, `CONFIG_CSS_ENTRY_RESERVED` | User Vite configuration conflicts with plugin-owned settings |
 | `PATH_OUTSIDE_THEME`, `PATH_RESOLUTION_FAILED`, `PATH_MISSING` | A generated, recorded, or changed path is unsafe or unavailable |
 | `FS_READ_FAILED`, `FS_JSON_INVALID`, `FS_REMOVE_FAILED`, `FS_WRITE_FAILED` | A required filesystem operation failed |
