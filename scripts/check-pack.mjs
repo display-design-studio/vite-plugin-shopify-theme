@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 export const expectedFiles = [
   'CHANGELOG.md',
@@ -122,7 +123,7 @@ export async function checkPackage() {
 
   try {
     const pack = stage('pack', () => {
-      const raw = execFileSync('npm', ['pack', '--json', '--pack-destination', packDirectory], {
+      const raw = execFileSync(npmCommand, ['pack', '--json', '--pack-destination', packDirectory], {
         cwd: root,
         encoding: 'utf8',
         env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
@@ -139,7 +140,7 @@ export async function checkPackage() {
     });
 
     writeFileSync(join(consumer, 'package.json'), '{"name":"package-contract-consumer","private":true,"type":"module"}\n');
-    stage('install', () => execFileSync('npm', [
+    stage('install', () => execFileSync(npmCommand, [
       'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
       '--legacy-peer-deps', join(packDirectory, pack.filename),
     ], {
