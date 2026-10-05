@@ -50,22 +50,77 @@ Render the generated snippet in `layout/theme.liquid`. The entryless render inst
 </body>
 ```
 
-Add the scripts and build once to generate `snippets/vite-tag.liquid` and the production assets:
+Add the scripts below. The development script starts Vite and the already-installed Shopify CLI together:
 
 ```json
 {
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "node scripts/dev.mjs",
+    "vite": "vite"
   }
 }
 ```
+
+Create `scripts/dev.mjs`:
+
+```js
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const npmCli = process.env.npm_execpath;
+if (!npmCli) throw new Error('Run this script through npm run dev.');
+const themeRoot = fileURLToPath(new URL('..', import.meta.url));
+const shopifyOptions = {
+  cwd: themeRoot,
+  env: { ...process.env, SHOPIFY_FLAG_PATH: themeRoot },
+  stdio: 'inherit',
+};
+
+const children = [
+  spawn(process.env.npm_node_execpath ?? process.execPath, [npmCli, 'run', 'vite'], {
+    cwd: themeRoot,
+    stdio: 'inherit',
+  }),
+  process.platform === 'win32'
+    ? spawn('shopify theme dev', { ...shopifyOptions, shell: true })
+    : spawn('shopify', ['theme', 'dev'], shopifyOptions),
+];
+
+let closing = false;
+function close(signal = 'SIGTERM') {
+  if (closing) return;
+  closing = true;
+  for (const child of children) if (!child.killed) child.kill(signal);
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => close(signal));
+for (const child of children) {
+  child.on('error', (error) => {
+    console.error(error.message);
+    close();
+    process.exitCode = 1;
+  });
+  child.on('exit', (code) => {
+    close();
+    process.exitCode ??= code ?? 1;
+  });
+}
+```
+
+Build once to generate `snippets/vite-tag.liquid` and the production assets:
 
 ```sh
 npm run build
 ```
 
-For local development, run `npm run dev` and `shopify theme dev` in separate terminals. See [Development modes](#development-modes) before using Shopify's hosted Theme Editor.
+For local development, use one command:
+
+```sh
+npm run dev
+```
+
+See [Development modes](#development-modes) before using Shopify's hosted Theme Editor.
 
 Runnable [Vanilla, Vue, and React examples](examples) use the same layout and build contract.
 
@@ -73,7 +128,7 @@ Runnable [Vanilla, Vue, and React examples](examples) use the same layout and bu
 
 - Node.js `^20.19.0 || >=22.12.0`.
 - Vite `^8.0.0` in the consuming project.
-- A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI is useful for local theme previews, but is not a plugin dependency.
+- A Shopify theme directory containing the usual `assets`, `layout`, and `snippets` directories. Shopify CLI must already be installed and available as `shopify` for the one-command local preview, but is not a plugin dependency.
 
 The entryless render emits nothing in production, so it is safe to leave it in the layout. Use `themeRoot`, `snippet`, and `devOrigin` only when their non-default behavior is needed.
 
@@ -133,7 +188,8 @@ Add a conventional script and build the theme:
 {
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "node scripts/dev.mjs",
+    "vite": "vite"
   }
 }
 ```
@@ -154,14 +210,10 @@ Vite gives emitted assets content-hashed filenames; Shopify's `asset_url` filter
 
 ### Local storefront preview
 
-Run Vite and Shopify CLI in separate terminals so Shopify serves Liquid while Vite serves frontend modules and HMR:
+Run the development orchestrator so Shopify CLI serves Liquid while Vite serves frontend modules and HMR:
 
 ```sh
 npm run dev
-```
-
-```sh
-shopify theme dev
 ```
 
 When Vite begins listening, the plugin temporarily replaces the configured snippet with tags for `@vite/client`, its theme-reload client, and each explicit entry. Changes to Liquid and JSON files inside the theme trigger a storefront reload. On normal shutdown, the prior snippet is restored (or the temporary file is removed if none existed).
@@ -388,18 +440,19 @@ Those hooks also let the plugin follow Vite's manifest, module-preload, CSS-spli
 
 Version 0.2.0 replaces the contract published in 0.1.0. Update configuration and development scripts together rather than treating it as a drop-in upgrade.
 
-1. Remove calls to the `shopify-theme` executable and remove its legacy CLI options. Use ordinary `vite` scripts and run Shopify CLI separately:
+1. Remove calls to the `shopify-theme` executable and remove its legacy CLI options. Use an ordinary Vite script and the development orchestrator from the quick start:
 
    ```json
    {
      "scripts": {
        "build": "vite build",
-       "dev": "vite"
+       "dev": "node scripts/dev.mjs",
+       "vite": "vite"
      }
    }
    ```
 
-   Start `npm run dev` and `shopify theme dev` in separate terminals.
+   Start both Vite and the already-installed Shopify CLI with `npm run dev`.
 
 2. Replace the singular `entry` option with an explicit `entries` map. Each key becomes the Liquid-facing name and each value is a source file relative to the theme root:
 

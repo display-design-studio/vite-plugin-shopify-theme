@@ -11,9 +11,9 @@
 #
 # Ignore templates and sections with a regular expression:
 #   /(templates|sections)/.*\.json/
-frontend/
-scripts/
-node_modules/
+frontend/*
+scripts/*
+node_modules/*
 package*.json
 vite.config.ts
 UPSTREAM.md
