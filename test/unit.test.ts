@@ -207,6 +207,23 @@ describe('manifest rendering', () => {
 });
 
 describe('Vite 8 configuration', () => {
+  it('resolves a nested theme from the configured monorepo root', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'shopify-theme-workspace-'));
+    const root = join(workspace, 'packages/store-theme');
+    mkdirSync(join(root, 'frontend'), { recursive: true });
+    mkdirSync(join(root, 'assets'));
+    mkdirSync(join(root, 'snippets'));
+    writeFileSync(join(root, 'frontend/theme.ts'), 'export {}');
+    const canonicalRoot = realpathSync.native(root);
+    const plugin = shopifyTheme({ themeRoot: 'packages/store-theme', entries: { app: 'frontend/theme.ts' } }) as any;
+    const contribution = plugin.config({ root: workspace }, { command: 'build', mode: 'production' });
+    expect(contribution).toMatchObject({
+      root: canonicalRoot,
+      input: { app: join(canonicalRoot, 'frontend/theme.ts') },
+      build: { outDir: join(canonicalRoot, 'assets') },
+    });
+  });
+
   it('owns publicDir and top-level input and uses server.ws for tunnels', () => {
     const root = fixture();
     const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root, devOrigin: 'https://vite.example.test' }) as any;
