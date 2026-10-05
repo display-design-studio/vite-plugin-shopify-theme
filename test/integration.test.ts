@@ -123,7 +123,7 @@ describe('isolated builds', () => {
     await buildTheme(root);
     expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
     expect(existsSync(join(root, 'assets/stale.js'))).toBe(false);
-    expect(statSync(snippetPath(root)).mode & 0o777).toBe(0o640);
+    if (process.platform !== 'win32') expect(statSync(snippetPath(root)).mode & 0o777).toBe(0o640);
     const firstState = readFileSync(statePath(root), 'utf8');
     const firstSnippet = readFileSync(snippetPath(root), 'utf8');
     await buildTheme(root);
@@ -324,7 +324,7 @@ describe('development ownership and recovery', () => {
     const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
     httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
     plugin.configureServer({ config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer });
-    expect(() => httpServer.emit('listening')).toThrow(/atomically write.*blocked\/vite-tag\.liquid.*parent directory is writable/i);
+    expect(() => httpServer.emit('listening')).toThrow(/atomically write.*blocked[\\/]vite-tag\.liquid.*parent directory is writable/i);
     expect(info).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
     expect(existsSync(lockPath(root))).toBe(false);
