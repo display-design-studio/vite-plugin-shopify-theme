@@ -35,14 +35,28 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
     for (const css of chunk.css ?? []) if (!seenCss.has(css)) { seenCss.add(css); styles.push(css); }
   };
   const visitImports = (key: string): void => {
-    const chunk = manifest[key];
-    if (!chunk) throw diagnostic(`Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
-    for (const imported of chunk.imports ?? []) if (!seenImports.has(imported)) {
-      seenImports.add(imported);
-      const importedChunk = manifest[imported];
-      if (!importedChunk) throw diagnostic(`Vite manifest entry "${key}" references missing imported chunk "${imported}". Run a clean build and retry.`);
-      visitImports(imported); addStyles(importedChunk);
-      if (importedChunk.file.endsWith('.js')) preloads.push(importedChunk.file);
+    const rootChunk = manifest[key];
+    if (!rootChunk) throw diagnostic(`Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+    const stack: Array<{ key: string; chunk: ManifestChunk; index: number; imported?: ManifestChunk }> = [
+      { key, chunk: rootChunk, index: 0 },
+    ];
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const imports = frame.chunk.imports ?? [];
+      if (frame.index < imports.length) {
+        const imported = imports[frame.index++];
+        if (seenImports.has(imported)) continue;
+        seenImports.add(imported);
+        const importedChunk = manifest[imported];
+        if (!importedChunk) throw diagnostic(`Vite manifest entry "${frame.key}" references missing imported chunk "${imported}". Run a clean build and retry.`);
+        stack.push({ key: imported, chunk: importedChunk, index: 0, imported: importedChunk });
+        continue;
+      }
+      stack.pop();
+      if (frame.imported) {
+        addStyles(frame.imported);
+        if (frame.imported.file.endsWith('.js')) preloads.push(frame.imported.file);
+      }
     }
   };
   for (const source of entrySources) {

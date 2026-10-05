@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { Manifest } from 'vite';
-import { diagnostic, errorDetail, inside, isRecord } from './config.js';
+import { canonicalPathInside, diagnostic, errorDetail, isRecord } from './config.js';
 
 export const STATE_FILE = '.vite-shopify-theme.json';
 const LOCK_DIR = '.vite-shopify-theme.lock';
@@ -64,8 +64,8 @@ export function readManifest(path: string): Manifest {
 }
 
 function isStringArray(value: unknown): value is string[] { return Array.isArray(value) && value.every((item) => typeof item === 'string'); }
-function lockPath(root: string): string { return resolve(root, LOCK_DIR); }
-function ownerPath(root: string): string { return resolve(lockPath(root), LOCK_FILE); }
+function lockPath(root: string): string { return canonicalPathInside(root, resolve(root, LOCK_DIR), 'Ownership lock'); }
+function ownerPath(root: string): string { return canonicalPathInside(root, resolve(lockPath(root), LOCK_FILE), 'Ownership metadata'); }
 function isOriginal(value: unknown): value is DevelopmentRecovery['original'] { return isRecord(value) && typeof value.exists === 'boolean' && typeof value.content === 'string'; }
 function isDevelopmentRecovery(value: unknown): value is DevelopmentRecovery { return isRecord(value) && typeof value.snippet === 'string' && typeof value.developmentHash === 'string' && isOriginal(value.original); }
 function isLockOwner(value: unknown): value is LockOwner {
@@ -89,9 +89,11 @@ function processIsAlive(pid: number): boolean {
 
 function recoverDevelopment(root: string, owner: LockOwner): void {
   const recovery = owner.development;
-  if (!recovery || !inside(root, recovery.snippet) || !existsSync(recovery.snippet)) return;
-  if (sha(readText(recovery.snippet, 'temporary development snippet')) !== recovery.developmentHash) return;
-  if (recovery.original.exists) atomicWrite(recovery.snippet, recovery.original.content); else removeFile(recovery.snippet, 'temporary development snippet');
+  if (!recovery || !existsSync(recovery.snippet)) return;
+  let snippet: string;
+  try { snippet = canonicalPathInside(root, recovery.snippet, 'Recorded recovery snippet', true); } catch { return; }
+  if (sha(readText(snippet, 'temporary development snippet')) !== recovery.developmentHash) return;
+  if (recovery.original.exists) atomicWrite(snippet, recovery.original.content); else removeFile(snippet, 'temporary development snippet');
 }
 
 export function acquireLock(root: string, mode: LockOwner['mode']): LockOwner {

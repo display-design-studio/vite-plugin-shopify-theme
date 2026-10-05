@@ -2,6 +2,20 @@
 
 All notable changes to this package are documented here.
 
+## 0.3.0
+
+### Added
+
+- Added canonical real-path enforcement for symlinked theme roots, entries, generated snippets, assets, ownership state, locks, manifests, and development recovery.
+- Added large-manifest, repeated crash-recovery, high-volume cleanup, and symlink-policy coverage.
+- Added Linux, macOS, and Windows canonical CI, npm 10.8.2/latest packaging checks, and packed-package consumer builds with npm, pnpm, Yarn, and Bun.
+- Added an approval-protected, manual Shopify end-to-end workflow for `main`.
+
+### Changed
+
+- Replaced recursive manifest traversal with deterministic iterative traversal for deeply nested and cyclic graphs.
+- Unified npm Trusted Publishing and GitHub Release creation in the protected tag-driven workflow, including integrity-safe reruns.
+
 ## 0.2.1
 
 ### Added

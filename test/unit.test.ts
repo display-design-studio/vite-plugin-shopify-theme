@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -12,7 +12,7 @@ function fixture() {
   mkdirSync(join(root, 'snippets'));
   writeFileSync(join(root, 'frontend/theme.ts'), 'export {}');
   writeFileSync(join(root, 'frontend/theme.css'), 'body{}');
-  return root;
+  return realpathSync.native(root);
 }
 
 describe('option validation', () => {
@@ -57,6 +57,25 @@ describe('option validation', () => {
     expect(() => normalizeOptions({ entries: { a: 'frontend/theme.ts', b: 'frontend/theme.ts' } }, root)).toThrow(/Entry "b" duplicates.*distinct source/);
     expect(() => normalizeOptions({ entries: { app: '../escape.ts' } }, root)).toThrow(/Entry "app".*outside theme root.*inside the theme/);
   });
+
+  it('canonicalizes a symlinked root and permits only contained symlink targets', () => {
+    const root = fixture();
+    const parent = mkdtempSync(join(tmpdir(), 'shopify-theme-links-'));
+    const alias = join(parent, 'theme');
+    symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const contained = join(root, 'linked-frontend');
+    symlinkSync(join(root, 'frontend'), contained, process.platform === 'win32' ? 'junction' : 'dir');
+    const normalized = normalizeOptions({ themeRoot: alias, entries: { app: 'linked-frontend/theme.ts' } }, parent);
+    expect(normalized.themeRoot).toBe(realpathSync.native(root));
+    expect(normalized.entries.app).toBe(realpathSync.native(join(root, 'frontend/theme.ts')));
+
+    const outside = mkdtempSync(join(tmpdir(), 'shopify-theme-outside-'));
+    writeFileSync(join(outside, 'escape.ts'), 'export {}');
+    symlinkSync(outside, join(root, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => normalizeOptions({ themeRoot: root, entries: { app: 'escape/escape.ts' } })).toThrow(/outside canonical theme root/);
+    symlinkSync(outside, join(root, 'escape-snippets'), process.platform === 'win32' ? 'junction' : 'dir');
+    expect(() => normalizeOptions({ themeRoot: root, snippet: 'escape-snippets/vite-tag.liquid', entries: { app: 'frontend/theme.ts' } })).toThrow(/outside canonical theme root/);
+  });
 });
 
 describe('manifest rendering', () => {
@@ -73,6 +92,24 @@ describe('manifest rendering', () => {
       styles: ['theme-a.css', 'shared-b.css'],
       scripts: ['theme-a.js'],
     });
+  });
+
+  it('walks a large cyclic manifest iteratively with stable deduplication', () => {
+    const large: Manifest = {};
+    const count = 12_000;
+    for (let index = 0; index < count; index += 1) {
+      large[`chunk-${index}`] = {
+        file: `chunk-${index}.js`,
+        imports: index + 1 < count ? [`chunk-${index + 1}`] : ['chunk-0'],
+        css: [`shared-${index % 17}.css`],
+      };
+    }
+    large.entry = { file: 'entry.js', imports: ['chunk-0', 'chunk-6000'], css: ['entry.css'] };
+    const first = collectManifestTags(large, ['entry']);
+    expect(first.preloads).toHaveLength(count);
+    expect(first.styles).toHaveLength(18);
+    expect(new Set(first.styles).size).toBe(18);
+    expect(collectManifestTags(large, ['entry'])).toEqual(first);
   });
 
   it('renders only declared entry branches with Shopify asset URLs', () => {
