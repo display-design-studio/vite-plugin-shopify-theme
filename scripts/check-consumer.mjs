@@ -44,6 +44,9 @@ try {
     "console.log(JSON.stringify({ same: plugin === shopifyTheme, type: typeof plugin }));",
   ].join('\n')], { cwd: consumer, encoding: 'utf8' }));
   if (!imported.same || imported.type !== 'function') throw new Error('The installed public API did not import correctly.');
+  const installedPackage = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme');
+  const cliHelp = execFileSync(process.execPath, [join(installedPackage, 'dist', 'cli.js'), '--help'], { cwd: consumer, encoding: 'utf8' });
+  if (!cliHelp.includes('vite-shopify-theme init') || !cliHelp.includes('vite-shopify-theme dev')) throw new Error('The installed executable is unavailable.');
   const assets = join(consumer, 'assets');
   const manifest = JSON.parse(readFileSync(join(assets, 'vite-manifest.json'), 'utf8'));
   for (const source of ['frontend/entrypoints/theme.css', 'frontend/entrypoints/theme.ts']) {
@@ -54,7 +57,7 @@ try {
   if (!existsSync(join(assets, 'manual.txt')) || !existsSync(join(consumer, 'snippets', 'manual.liquid'))) throw new Error('A manual theme file was not preserved.');
   const generated = readdirSync(assets).filter((file) => /\.(?:css|js)$/.test(file));
   if (generated.length < 2) throw new Error('Expected generated CSS and JavaScript assets.');
-  console.log(`[consumer] ${manager} installed, imported, and built the packed package successfully.`);
+  console.log(`[consumer] ${manager} installed, imported, executed, and built the packed package successfully.`);
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }

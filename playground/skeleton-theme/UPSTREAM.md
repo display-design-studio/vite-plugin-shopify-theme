@@ -7,7 +7,7 @@
 
 The snapshot is unchanged except for the local integration overlay: `package.json`,
 `package-lock.json`, `vite.config.ts`, Tailwind CSS development dependencies,
-`frontend/entrypoints/`, `scripts/dev.mjs`, generated
+`frontend/entrypoints/`, generated
 `snippets/vite-tag.liquid`, two renders in `layout/theme.liquid`, and Vite-related
 ignore entries. Upstream manual assets, including `assets/critical.css` and SVGs,
 remain source-controlled and are never broadly cleaned by the plugin.

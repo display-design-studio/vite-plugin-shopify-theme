@@ -1,6 +1,6 @@
 {
   "name": "@display-studio/vite-plugin-shopify-theme",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A focused Vite 8 integration for Shopify themes",
   "type": "module",
   "license": "MIT",
@@ -8,7 +8,7 @@
     "type": "git",
     "url": "git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git"
   },
-  "homepage": "https://github.com/display-design-studio/vite-plugin-shopify-theme#readme",
+  "homepage": "https://display-design-studio.github.io/vite-plugin-shopify-theme/",
   "bugs": {
     "url": "https://github.com/display-design-studio/vite-plugin-shopify-theme/issues"
   },
@@ -27,6 +27,9 @@
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "vite-shopify-theme": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -35,6 +38,9 @@
   },
   "scripts": {
     "build": "vite build",
+    "docs:dev": "vitepress docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -51,7 +57,7 @@
     "compat:vue": "node scripts/check-frameworks.mjs vue",
     "compat:react": "node scripts/check-frameworks.mjs react",
     "compat": "node scripts/check-compatibility.mjs all",
-    "check": "npm run typecheck && npm test && npm run build && npm run playground:build && npm run pack:check && npm run theme:check",
+    "check": "npm run typecheck && npm test && npm run build && npm run docs:build && npm run playground:build && npm run pack:check && npm run theme:check",
     "prepublishOnly": "npm run check"
   },
   "publishConfig": {
@@ -66,7 +72,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.3.1",
     "vite-plugin-dts": "^5.1.1",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "vitepress": "1.6.4"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

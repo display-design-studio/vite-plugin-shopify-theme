@@ -13,6 +13,11 @@ export const expectedFiles = [
   'CHANGELOG.md',
   'LICENSE',
   'README.md',
+  'dist/cli.d.ts',
+  'dist/cli.js',
+  'dist/cli.js.map',
+  'dist/cli/dev.d.ts',
+  'dist/cli/init.d.ts',
   'dist/config.d.ts',
   'dist/index.d.ts',
   'dist/index.js',
@@ -63,7 +68,7 @@ export function validateFiles(files) {
 
 export function validateMetadata(manifest) {
   strictEqual(manifest.name, '@display-studio/vite-plugin-shopify-theme', 'package name differs');
-  strictEqual(manifest.version, '0.3.0', 'package version differs');
+  strictEqual(manifest.version, '0.4.0', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
   strictEqual(manifest.main, './dist/index.js', 'main entrypoint differs');
@@ -71,7 +76,7 @@ export function validateMetadata(manifest) {
   deepStrictEqual(manifest.files, ['dist', 'README.md', 'CHANGELOG.md', 'LICENSE'], 'files allowlist differs');
   deepStrictEqual(manifest.engines, { node: '^20.19.0 || >=22.12.0' }, 'Node engine differs');
   deepStrictEqual(manifest.peerDependencies, { vite: '^8.0.0' }, 'Vite peer range differs');
-  strictEqual('bin' in manifest, false, 'package must not publish executables');
+  deepStrictEqual(manifest.bin, { 'vite-shopify-theme': './dist/cli.js' }, 'CLI executable differs');
   strictEqual('dependencies' in manifest, false, 'package must not declare runtime dependencies');
   deepStrictEqual(manifest.publishConfig, { access: 'public', registry: 'https://registry.npmjs.org/' }, 'publish configuration differs');
   strictEqual(manifest.scripts?.prepublishOnly, 'npm run check', 'prepublishOnly guard differs');
@@ -79,7 +84,7 @@ export function validateMetadata(manifest) {
     type: 'git',
     url: 'git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git',
   }, 'repository metadata differs');
-  strictEqual(manifest.homepage, 'https://github.com/display-design-studio/vite-plugin-shopify-theme#readme', 'homepage metadata differs');
+  strictEqual(manifest.homepage, 'https://display-design-studio.github.io/vite-plugin-shopify-theme/', 'homepage metadata differs');
   deepStrictEqual(manifest.bugs, { url: 'https://github.com/display-design-studio/vite-plugin-shopify-theme/issues' }, 'issue tracker metadata differs');
   for (const keyword of ['vite-plugin', 'shopify', 'liquid', 'hmr']) {
     strictEqual(manifest.keywords?.includes(keyword), true, `required keyword ${JSON.stringify(keyword)} is missing`);
@@ -100,9 +105,11 @@ export function validateImport(packageDirectory) {
   ].join('\n')], { cwd: consumer, encoding: 'utf8' }));
   deepStrictEqual(result.exports, expectedRuntimeExports, 'runtime export list differs');
   strictEqual(result.sameDefault, true, 'default export must be identical to shopifyTheme');
+  const cli = execFileSync(process.execPath, [join(packageDirectory, 'dist', 'cli.js'), '--help'], { cwd: consumer, encoding: 'utf8' });
+  strictEqual(cli.includes('vite-shopify-theme init') && cli.includes('vite-shopify-theme dev'), true, 'CLI help is unavailable');
 
   const consumerRequire = createRequire(join(consumer, 'package.json'));
-  for (const subpath of [`${packageName}/dist/index.js`, `${packageName}/package.json`]) {
+  for (const subpath of [`${packageName}/dist/index.js`, `${packageName}/dist/cli.js`, `${packageName}/package.json`]) {
     try {
       consumerRequire.resolve(subpath);
     } catch (error) {

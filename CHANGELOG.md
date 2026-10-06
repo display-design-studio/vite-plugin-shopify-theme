@@ -6,11 +6,20 @@ All notable changes to this package are documented here.
 
 ### Added
 
+- Added the public `vite-shopify-theme init` wizard for conservative setup of new Shopify Skeleton projects and existing themes, with TypeScript, Tailwind, and Shopify AI Toolkit defaults.
+- Added `vite-shopify-theme dev` to coordinate installed Vite and Shopify CLI processes.
+- Added a VitePress documentation site and GitHub Pages deployment workflow.
+- Accepted the scoped 0.4.0 CLI RFC; tunnel management and deployment remain out of scope.
+
 - Added stable, searchable diagnostic codes to every plugin-authored error and warning, with a documented code reference for troubleshooting.
 - Added opt-in `diagnostics` lifecycle logging through Vite's logger, including stable events for configuration, ownership, build output, development restoration, and hot reloads.
 - Added early `THEME_STRUCTURE_INVALID` diagnostics for missing or non-directory Shopify assets and configured snippet directories.
 - Documented supported monorepo and multi-theme config topologies and added concurrent isolation coverage for independent theme roots.
 - Added boundary-first troubleshooting guidance that separates Vite/plugin, Shopify, and tunnel/browser failures with concrete file, command, HTTP, and WebSocket checks.
+
+### Changed
+
+- Made the default `shopify` import canonical in documentation and examples while preserving the identical `shopifyTheme` named export.
 
 ## 0.3.0
 
