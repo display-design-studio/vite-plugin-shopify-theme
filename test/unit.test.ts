@@ -87,7 +87,7 @@ describe('development CLI', () => {
     const signals = new Map<string, () => void>();
     const result = runDevelopment(['--host', '0.0.0.0'], { cwd: root, platform: 'linux', spawn, onSignal: (signal, handler) => signals.set(signal, handler) });
     expect(spawned[0].command).toBe(process.execPath);
-    expect(spawned[0].args).toEqual([expect.stringContaining('vite/bin/vite.js'), '--host', '0.0.0.0']);
+    expect(spawned[0].args).toEqual([expect.stringMatching(/vite[\\/]bin[\\/]vite\.js$/), '--host', '0.0.0.0']);
     expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
     signals.get('SIGINT')?.();
     expect(result.children.every((child) => child.killed)).toBe(true);
