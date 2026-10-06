@@ -37,6 +37,7 @@ describe('setup CLI', () => {
     expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain("import shopify from '@display-studio/vite-plugin-shopify-theme'");
     expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain('tailwindcss()');
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain('vite-shopify-theme dev');
+    expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).type).toBe('module');
     expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).toContain("entry: 'theme.ts'");
     expect(calls[0][0]).toBe('npm');
     expect(calls[0][1]).toContain('@display-studio/vite-plugin-shopify-theme@0.4.0');
@@ -75,13 +76,13 @@ describe('setup CLI', () => {
       calls.push([command, ...args]);
       if (command === 'shopify') for (const directory of ['assets', 'layout', 'snippets']) mkdirSync(join(root, directory), { recursive: true });
     } });
-    expect(calls[0]).toEqual(['shopify', 'theme', 'init', 'new-theme', '--path', parent, '--latest']);
+    expect(calls[0]).toEqual(['shopify', 'theme', 'init', 'new-theme', '--path', parent, '--clone-url', 'https://github.com/Shopify/skeleton-theme.git#v1.0.0']);
   });
 
   it('is idempotent and merges ignore files without duplicates', async () => {
     const root = theme();
     writeFileSync(join(root, '.gitignore'), 'coverage/\nnode_modules/\n');
-    writeFileSync(join(root, '.shopifyignore'), 'sections/private.liquid\nfrontend/\n');
+    writeFileSync(join(root, '.shopifyignore'), 'sections/private.liquid\nfrontend/*\n');
     const runtime = { version: '0.4.0', cwd: '/', run: vi.fn() };
     const options = { yes: true, skills: false, directory: root } as const;
     await initialize(options, runtime);
@@ -89,7 +90,7 @@ describe('setup CLI', () => {
     await initialize(options, runtime);
     for (const [file, contents] of first) expect(readFileSync(join(root, file), 'utf8')).toBe(contents);
     expect(readFileSync(join(root, '.gitignore'), 'utf8').match(/node_modules\//g)).toHaveLength(1);
-    expect(readFileSync(join(root, '.shopifyignore'), 'utf8').match(/frontend\//g)).toHaveLength(1);
+    expect(readFileSync(join(root, '.shopifyignore'), 'utf8').match(/frontend\/\*/g)).toHaveLength(1);
   });
 
   it.each([

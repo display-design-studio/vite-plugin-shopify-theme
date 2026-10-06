@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
+import { emitKeypressEvents } from 'node:readline';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 
@@ -26,6 +27,8 @@ export interface InitRuntime {
 }
 
 const telemetryNotice = 'Shopify AI Toolkit has telemetry enabled by default. Privacy and opt-out: https://github.com/Shopify/shopify-ai-toolkit#telemetry';
+// Pinned release: `--latest` fails on shallow clones and `main` uses Liquid tags stores may not support yet.
+const skeletonUrl = 'https://github.com/Shopify/skeleton-theme.git#v1.0.0';
 const managers = ['npm', 'pnpm', 'yarn', 'bun'] as const;
 
 function detectedManager(root: string): PackageManager {
@@ -94,13 +97,41 @@ function installCommand(manager: PackageManager, packages: string[]) {
 }
 
 async function defaultSelect<T extends string>(question: string, choices: readonly T[], defaultValue: T) {
-  const rl = createInterface({ input: stdin, output: stdout });
+  if (!stdin.isTTY || !stdout.isTTY) {
+    const rl = createInterface({ input: stdin, output: stdout });
+    try {
+      const answer = (await rl.question(`${question} (${choices.join('/')}) [${defaultValue}]: `)).trim();
+      if (!answer) return defaultValue;
+      if (!choices.includes(answer as T)) throw new Error(`Expected one of: ${choices.join(', ')}`);
+      return answer as T;
+    } finally { rl.close(); }
+  }
+  let index = Math.max(0, choices.indexOf(defaultValue));
+  const render = (first: boolean) => {
+    if (!first) stdout.write(`\x1b[${choices.length}A`);
+    for (const [i, choice] of choices.entries()) stdout.write(`\x1b[2K${i === index ? '\x1b[36m❯' : ' '} ${choice}${i === index ? '\x1b[0m' : ''}\n`);
+  };
+  stdout.write(`${question} (↑/↓, enter)\n`);
+  render(true);
+  emitKeypressEvents(stdin);
+  stdin.setRawMode(true);
+  stdin.resume();
   try {
-    const answer = (await rl.question(`${question} (${choices.join('/')}) [${defaultValue}]: `)).trim();
-    if (!answer) return defaultValue;
-    if (!choices.includes(answer as T)) throw new Error(`Expected one of: ${choices.join(', ')}`);
-    return answer as T;
-  } finally { rl.close(); }
+    return await new Promise<T>((resolvePromise, reject) => {
+      const onKey = (_: string, key: { name?: string; ctrl?: boolean }) => {
+        if (key.ctrl && key.name === 'c') { stdin.off('keypress', onKey); reject(new Error('Setup cancelled.')); return; }
+        if (key.name === 'up' || key.name === 'k') index = (index - 1 + choices.length) % choices.length;
+        else if (key.name === 'down' || key.name === 'j') index = (index + 1) % choices.length;
+        else if (key.name === 'return') { stdin.off('keypress', onKey); resolvePromise(choices[index]!); return; }
+        else return;
+        render(false);
+      };
+      stdin.on('keypress', onKey);
+    });
+  } finally {
+    stdin.setRawMode(false);
+    stdin.pause();
+  }
 }
 
 async function defaultConfirm(question: string, defaultValue: boolean) {
@@ -123,7 +154,7 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   if (options.mode && options.mode !== inferredMode) throw new Error(options.mode === 'new' ? `Target already exists: ${root}` : `Existing theme not found: ${root}`);
   if (!exists) {
     mkdirSync(dirname(root), { recursive: true });
-    run('shopify', ['theme', 'init', basename(root), '--path', dirname(root), '--latest'], dirname(root));
+    run('shopify', ['theme', 'init', basename(root), '--path', dirname(root), '--clone-url', skeletonUrl], dirname(root));
   }
   if (!validTheme(root)) throw new Error(`Not a Shopify theme: ${root}. Expected assets, layout, and snippets directories; no files were changed.`);
 
@@ -143,7 +174,8 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   for (const [name, expected] of Object.entries({ build: 'vite build', dev: 'vite-shopify-theme dev' })) {
     if (manifest.scripts?.[name] && manifest.scripts[name] !== expected) throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
   }
-  const nextManifest = { ...manifest, scripts: { ...manifest.scripts, build: 'vite build', dev: 'vite-shopify-theme dev' } };
+  if (manifest.type && manifest.type !== 'module') throw new Error(`Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`);
+  const nextManifest = { ...manifest, type: 'module', scripts: { ...manifest.scripts, build: 'vite build', dev: 'vite-shopify-theme dev' } };
   for (const [relative, contents] of files) {
     const path = join(root, relative);
     if (existsSync(path) && readFileSync(path, 'utf8') !== contents) throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);
@@ -158,7 +190,7 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   const gitignorePath = join(root, '.gitignore');
   writeFileSync(gitignorePath, mergeLines(existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '', ['node_modules/', '.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js']));
   const shopifyIgnorePath = join(root, '.shopifyignore');
-  writeFileSync(shopifyIgnorePath, mergeLines(existsSync(shopifyIgnorePath) ? readFileSync(shopifyIgnorePath, 'utf8') : '', ['node_modules/', 'frontend/', 'vite.config.*', '.vite-shopify-theme.json', '.vite-shopify-theme.lock']));
+  writeFileSync(shopifyIgnorePath, mergeLines(existsSync(shopifyIgnorePath) ? readFileSync(shopifyIgnorePath, 'utf8') : '', ['node_modules/*', 'frontend/*', 'vite.config.*', '.vite-shopify-theme.json', '.vite-shopify-theme.lock']));
 
   const layoutPath = join(root, 'layout/theme.liquid');
   let layoutInstructions: string | undefined;
