@@ -1,9 +1,9 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
-import { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';
+import shopify from '@display-studio/vite-plugin-shopify-theme';
 
 export default defineConfig({
-  plugins: [tailwindcss(), shopifyTheme({
+  plugins: [tailwindcss(), shopify({
     entries: {
       'theme.css': 'frontend/entrypoints/theme.css',
       'theme.ts': 'frontend/entrypoints/theme.ts',

@@ -1,10 +1,110 @@
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { collectManifestTags, developmentSnippet, normalizeOptions, productionSnippet, shopifyTheme } from '../src/index.js';
 import { renderProductionSnippet } from '../src/snippets.js';
+import { initialize, telemetryNotice } from '../src/cli/init.js';
+import { parseInitArguments } from '../src/cli.js';
+import { runDevelopment } from '../src/cli/dev.js';
+import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
+
+describe('setup CLI', () => {
+  function theme() {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-init-'));
+    for (const directory of ['assets', 'layout', 'snippets']) mkdirSync(join(root, directory));
+    writeFileSync(join(root, 'layout/theme.liquid'), '<html><head></head><body>{{ content_for_layout }}</body></html>\n');
+    return root;
+  }
+
+  it('parses documented flags and rejects unknown values', () => {
+    expect(parseInitArguments(['theme', '--new', '--lang', 'js', '--package-manager', 'bun', '--no-tailwind', '--no-skills', '--yes'])).toEqual({
+      directory: 'theme', mode: 'new', language: 'js', packageManager: 'bun', tailwind: false, skills: false, yes: true,
+    });
+    expect(() => parseInitArguments(['--lang', 'coffee'])).toThrow('--lang must be js or ts');
+  });
+
+  it('applies non-interactive defaults and installs skills project-locally', async () => {
+    const root = theme();
+    const calls: Array<[string, string[], string]> = [];
+    const logs: string[] = [];
+    await initialize({ yes: true, directory: root }, { version: '0.4.0', cwd: '/', run: (command, args, directory) => calls.push([command, args, directory]), log: (message) => logs.push(message) });
+    expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain("import shopify from '@display-studio/vite-plugin-shopify-theme'");
+    expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain('tailwindcss()');
+    expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain('vite-shopify-theme dev');
+    expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).toContain("entry: 'theme.ts'");
+    expect(calls[0][0]).toBe('npm');
+    expect(calls[0][1]).toContain('@display-studio/vite-plugin-shopify-theme@0.4.0');
+    expect(calls[1]).toEqual(['npx', ['--yes', 'skills', 'add', 'Shopify/shopify-ai-toolkit', '--yes'], root]);
+    expect(logs).toContain(telemetryNotice);
+  });
+
+  it('supports JS without Tailwind or skills and preserves an ambiguous layout', async () => {
+    const root = theme();
+    writeFileSync(join(root, 'layout/theme.liquid'), '<head></head><head></head><body></body>');
+    const calls: string[] = [];
+    const result = await initialize({ yes: true, directory: root, language: 'js', tailwind: false, skills: false, packageManager: 'pnpm' }, {
+      version: '0.4.0', cwd: '/', run: (command) => calls.push(command), log: vi.fn(),
+    });
+    expect(existsSync(join(root, 'vite.config.js'))).toBe(true);
+    expect(readFileSync(join(root, 'frontend/entrypoints/theme.css'), 'utf8')).not.toContain('tailwindcss');
+    expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).toBe('<head></head><head></head><body></body>');
+    expect(result.layoutInstructions).toContain("entry: 'theme.js'");
+    expect(calls).toEqual(['pnpm']);
+  });
+
+  it('rejects invalid themes and incompatible files without changing them', async () => {
+    const invalid = mkdtempSync(join(tmpdir(), 'shopify-theme-invalid-'));
+    await expect(initialize({ yes: true, skills: false, directory: invalid }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('Not a Shopify theme');
+    const root = theme();
+    writeFileSync(join(root, 'vite.config.ts'), 'manual\n');
+    await expect(initialize({ yes: true, skills: false, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('Refusing to overwrite');
+    expect(existsSync(join(root, 'frontend/entrypoints/theme.ts'))).toBe(false);
+  });
+
+  it('creates a missing target through Shopify before setup', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'shopify-theme-new-'));
+    const root = join(parent, 'new-theme');
+    const calls: string[][] = [];
+    await initialize({ yes: true, skills: false, directory: root }, { version: '0.4.0', cwd: '/', run: (command, args) => {
+      calls.push([command, ...args]);
+      if (command === 'shopify') for (const directory of ['assets', 'layout', 'snippets']) mkdirSync(join(root, directory), { recursive: true });
+    } });
+    expect(calls[0]).toEqual(['shopify', 'theme', 'init', 'new-theme', '--path', parent, '--latest']);
+  });
+});
+
+describe('development CLI', () => {
+  it('starts Vite through Node, forwards arguments, and starts Shopify in the theme root', () => {
+    const spawned: Array<{ command: string; args: unknown; options: any; child: any }> = [];
+    const spawn = ((command: string, argsOrOptions: unknown, maybeOptions?: unknown) => {
+      const child = Object.assign(new EventEmitter(), { killed: false, kill: vi.fn(function (this: any) { this.killed = true; }) });
+      spawned.push({ command, args: maybeOptions ? argsOrOptions : undefined, options: maybeOptions ?? argsOrOptions, child });
+      return child;
+    }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    const signals = new Map<string, () => void>();
+    const result = runDevelopment(['--host', '0.0.0.0'], { cwd: root, platform: 'linux', spawn, onSignal: (signal, handler) => signals.set(signal, handler) });
+    expect(spawned[0].command).toBe(process.execPath);
+    expect(spawned[0].args).toEqual([expect.stringMatching(/vite[\\/]bin[\\/]vite\.js$/), '--host', '0.0.0.0']);
+    expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
+    signals.get('SIGINT')?.();
+    expect(result.children.every((child) => child.killed)).toBe(true);
+  });
+
+  it('uses a shell only for the Windows Shopify shim', () => {
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => {
+      calls.push(args);
+      return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() });
+    }) as never;
+    runDevelopment([], { platform: 'win32', spawn, onSignal: vi.fn() });
+    expect(calls[0][2].shell).toBeUndefined();
+    expect(calls[1][0]).toBe('shopify theme dev');
+    expect(calls[1][1].shell).toBe(true);
+  });
+});
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'shopify-theme-'));

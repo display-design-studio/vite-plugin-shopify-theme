@@ -37,7 +37,7 @@ Changes must preserve the core invariants:
 - Generated output remains deterministic.
 - Cleanup is limited to flat asset files recorded as plugin-owned.
 - A live or uncertain lock fails safely.
-- The plugin does not manage tunnels, run Shopify CLI, or deploy themes.
+- The plugin does not manage tunnels or deploy themes. Its `dev` command coordinates an already-installed Shopify CLI.
 
 Follow the responsibility boundaries in [`AGENTS.md`](AGENTS.md). Avoid unrelated formatting or updates to the vendored Skeleton Theme playground.
 

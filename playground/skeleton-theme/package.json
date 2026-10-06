@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "node scripts/dev.mjs",
-    "vite": "vite"
+    "dev": "vite-shopify-theme dev"
   },
   "devDependencies": {
     "@shopify/cli": "^3.88.1",
