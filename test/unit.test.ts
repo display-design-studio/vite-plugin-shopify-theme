@@ -23,6 +23,10 @@ describe('setup CLI', () => {
       directory: 'theme', mode: 'new', language: 'js', packageManager: 'bun', tailwind: false, skills: false, yes: true,
     });
     expect(() => parseInitArguments(['--lang', 'coffee'])).toThrow('--lang must be js or ts');
+    expect(() => parseInitArguments(['--lang'])).toThrow('--lang requires js or ts');
+    expect(() => parseInitArguments(['--package-manager'])).toThrow('--package-manager requires');
+    expect(() => parseInitArguments(['--tailwind', '--no-tailwind'])).toThrow('cannot be combined');
+    expect(() => parseInitArguments(['--skills', '--no-skills'])).toThrow('cannot be combined');
   });
 
   it('applies non-interactive defaults and installs skills project-locally', async () => {
@@ -73,6 +77,83 @@ describe('setup CLI', () => {
     } });
     expect(calls[0]).toEqual(['shopify', 'theme', 'init', 'new-theme', '--path', parent, '--latest']);
   });
+
+  it('is idempotent and merges ignore files without duplicates', async () => {
+    const root = theme();
+    writeFileSync(join(root, '.gitignore'), 'coverage/\nnode_modules/\n');
+    writeFileSync(join(root, '.shopifyignore'), 'sections/private.liquid\nfrontend/\n');
+    const runtime = { version: '0.4.0', cwd: '/', run: vi.fn() };
+    const options = { yes: true, skills: false, directory: root } as const;
+    await initialize(options, runtime);
+    const first = new Map(['package.json', 'vite.config.ts', '.gitignore', '.shopifyignore', 'layout/theme.liquid'].map((file) => [file, readFileSync(join(root, file), 'utf8')]));
+    await initialize(options, runtime);
+    for (const [file, contents] of first) expect(readFileSync(join(root, file), 'utf8')).toBe(contents);
+    expect(readFileSync(join(root, '.gitignore'), 'utf8').match(/node_modules\//g)).toHaveLength(1);
+    expect(readFileSync(join(root, '.shopifyignore'), 'utf8').match(/frontend\//g)).toHaveLength(1);
+  });
+
+  it.each([
+    ['npm', ['install', '--save-dev']],
+    ['pnpm', ['add', '--save-dev']],
+    ['yarn', ['add', '--dev']],
+    ['bun', ['add', '--dev']],
+  ] as const)('uses the %s development dependency command', async (packageManager, prefix) => {
+    const root = theme();
+    const run = vi.fn();
+    await initialize({ yes: true, skills: false, tailwind: false, language: 'js', directory: root, packageManager }, { version: '0.4.0', cwd: '/', run });
+    expect(run.mock.calls[0][0]).toBe(packageManager);
+    expect(run.mock.calls[0][1].slice(0, prefix.length)).toEqual(prefix);
+  });
+
+  it('rejects mode and script conflicts before writing generated files', async () => {
+    const root = theme();
+    await expect(initialize({ yes: true, mode: 'new', directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('Target already exists');
+    writeFileSync(join(root, 'package.json'), '{"scripts":{"dev":"custom-dev"}}\n');
+    await expect(initialize({ yes: true, skills: false, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('incompatible package script');
+    expect(existsSync(join(root, 'vite.config.ts'))).toBe(false);
+    expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).not.toContain('vite-tag');
+  });
+
+  it('does not disclose or invoke skills when opted out', async () => {
+    const root = theme();
+    const run = vi.fn();
+    const log = vi.fn();
+    await initialize({ yes: true, skills: false, directory: root }, { version: '0.4.0', cwd: '/', run, log });
+    expect(run.mock.calls.every(([command]) => command !== 'npx')).toBe(true);
+    expect(log).not.toHaveBeenCalledWith(telemetryNotice);
+  });
+
+  it('keeps completed Vite setup and gives a retry command when skills fail', async () => {
+    const root = theme();
+    const run = vi.fn((command: string) => { if (command === 'npx') throw new Error('offline'); });
+    await expect(initialize({ yes: true, directory: root }, { version: '0.4.0', cwd: '/', run })).rejects.toThrow('npx skills add Shopify/shopify-ai-toolkit');
+    expect(existsSync(join(root, 'vite.config.ts'))).toBe(true);
+    expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).toContain("{% render 'vite-tag' %}");
+  });
+
+  it('runs interactive choices, discloses telemetry, and lets the skills CLI prompt', async () => {
+    const root = theme();
+    const run = vi.fn();
+    const log = vi.fn();
+    const confirmations = [false, true, true];
+    await initialize({ directory: root }, {
+      version: '0.4.0', cwd: '/', run, log,
+      select: vi.fn(async (question: string) => question === 'Language' ? 'js' : 'yarn') as never,
+      confirm: vi.fn(async () => confirmations.shift() ?? false),
+    });
+    expect(log).toHaveBeenCalledWith(telemetryNotice);
+    expect(run.mock.calls[0][0]).toBe('yarn');
+    expect(run.mock.calls[1]).toEqual(['npx', ['skills', 'add', 'Shopify/shopify-ai-toolkit'], root]);
+  });
+
+  it('adds only missing layout tags and preserves existing markup', async () => {
+    const root = theme();
+    writeFileSync(join(root, 'layout/theme.liquid'), "<html><head>\n  {% render 'vite-tag' %}\n</head><body>content</body></html>\n");
+    await initialize({ yes: true, skills: false, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() });
+    const layout = readFileSync(join(root, 'layout/theme.liquid'), 'utf8');
+    expect(layout.match(/render 'vite-tag'/g)).toHaveLength(3);
+    expect(layout).toContain('<body>content');
+  });
 });
 
 describe('development CLI', () => {
@@ -103,6 +184,49 @@ describe('development CLI', () => {
     expect(calls[0][2].shell).toBeUndefined();
     expect(calls[1][0]).toBe('shopify theme dev');
     expect(calls[1][1].shell).toBe(true);
+  });
+
+  it('preserves Shopify environment and stops the sibling after a child failure', () => {
+    const previousExitCode = process.exitCode;
+    const previousPath = process.env.SHOPIFY_FLAG_PATH;
+    process.exitCode = undefined;
+    process.env.SHOPIFY_FLAG_PATH = '/theme/from/environment';
+    try {
+      const children: any[] = [];
+      const spawn = ((...args: any[]) => {
+        const child = Object.assign(new EventEmitter(), { killed: false, kill: vi.fn(function (this: any) { this.killed = true; }) });
+        children.push(child);
+        if (args[0] === 'shopify') expect(args[2].env.SHOPIFY_FLAG_PATH).toBe('/theme/from/environment');
+        return child;
+      }) as never;
+      runDevelopment([], { platform: 'linux', spawn, onSignal: vi.fn() });
+      children[0].emit('exit', 7, null);
+      expect(process.exitCode).toBe(7);
+      expect(children[1].kill).toHaveBeenCalledWith('SIGTERM');
+    } finally {
+      process.exitCode = previousExitCode;
+      if (previousPath === undefined) delete process.env.SHOPIFY_FLAG_PATH;
+      else process.env.SHOPIFY_FLAG_PATH = previousPath;
+    }
+  });
+
+  it('reports spawn errors and forwards SIGTERM to both children', () => {
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
+    try {
+      const children: any[] = [];
+      const signals = new Map<string, () => void>();
+      const spawn = (() => {
+        const child = Object.assign(new EventEmitter(), { killed: false, kill: vi.fn(function (this: any) { this.killed = true; }) });
+        children.push(child);
+        return child;
+      }) as never;
+      runDevelopment([], { spawn, onSignal: (signal, handler) => signals.set(signal, handler) });
+      children[0].emit('error', new Error('missing command'));
+      expect(process.exitCode).toBe(1);
+      expect(children[1].kill).toHaveBeenCalledWith('SIGTERM');
+      expect(signals.has('SIGTERM')).toBe(true);
+    } finally { process.exitCode = previousExitCode; }
   });
 });
 
