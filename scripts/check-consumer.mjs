@@ -30,7 +30,12 @@ function run(command, args, directory, temporary) {
 const temporary = mkdtempSync(join(tmpdir(), `vite-plugin-shopify-theme-${manager}-consumer-`));
 try {
   const packOutput = JSON.parse(execNpmSync(['pack', '--json', '--pack-destination', temporary], { cwd: root, encoding: 'utf8', env: environment(temporary) }));
-  const tarballName = (Array.isArray(packOutput) ? packOutput[0] : packOutput)?.filename;
+  const packResult = Array.isArray(packOutput)
+    ? packOutput[0]
+    : packOutput?.filename
+      ? packOutput
+      : Object.values(packOutput ?? {})[0];
+  const tarballName = packResult?.filename;
   if (!tarballName) throw new Error('npm pack did not report a tarball filename.');
   const tarball = join(temporary, tarballName);
   const consumer = join(temporary, 'consumer');
