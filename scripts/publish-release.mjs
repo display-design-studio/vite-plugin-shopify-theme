@@ -7,7 +7,12 @@ import { execNpmSync } from './npm-command.mjs';
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const temporary = mkdtempSync(join(tmpdir(), 'vite-plugin-shopify-theme-release-'));
 try {
-  const packed = JSON.parse(execNpmSync(['pack', '--json', '--pack-destination', temporary], { encoding: 'utf8' }))[0];
+  const packOutput = JSON.parse(execNpmSync(['pack', '--json', '--pack-destination', temporary], { encoding: 'utf8' }));
+  const packed = Array.isArray(packOutput)
+    ? packOutput[0]
+    : packOutput?.filename
+      ? packOutput
+      : Object.values(packOutput ?? {})[0];
   if (!packed?.filename) throw new Error('npm pack did not report a release artifact.');
   const tarball = join(temporary, packed.filename);
   const localIntegrity = `sha512-${createHash('sha512').update(readFileSync(tarball)).digest('base64')}`;
