@@ -1,7 +1,8 @@
 # @display-studio/vite-plugin-shopify-theme
 
 [![CI](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
+[![npm version](https://npmx.dev/api/registry/badge/version/@display-studio/vite-plugin-shopify-theme)](https://npmx.dev/package/@display-studio/vite-plugin-shopify-theme)
+[![npm downloads](https://npmx.dev/api/registry/badge/downloads/@display-studio/vite-plugin-shopify-theme)](https://npmx.dev/package/@display-studio/vite-plugin-shopify-theme)
 [![license](https://img.shields.io/npm/l/@display-studio/vite-plugin-shopify-theme)](./LICENSE)
 
 A zero-runtime-dependency Vite 8 plugin and setup CLI for explicit Shopify theme entries.
