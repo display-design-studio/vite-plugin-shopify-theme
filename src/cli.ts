@@ -11,6 +11,8 @@ function usage() {
 export function parseInitArguments(arguments_: string[]): InitOptions {
   const options: InitOptions = {};
   let modeFlag: string | undefined;
+  let tailwindFlag: string | undefined;
+  let skillsFlag: string | undefined;
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     if (argument === '--new' || argument === '--existing') {
@@ -18,13 +20,25 @@ export function parseInitArguments(arguments_: string[]): InitOptions {
       modeFlag = argument;
       options.mode = argument === '--new' ? 'new' : 'existing';
     }
-    else if (argument === '--tailwind') options.tailwind = true;
-    else if (argument === '--no-tailwind') options.tailwind = false;
-    else if (argument === '--skills') options.skills = true;
-    else if (argument === '--no-skills') options.skills = false;
+    else if (argument === '--tailwind' || argument === '--no-tailwind') {
+      if (tailwindFlag) throw new Error(`${tailwindFlag} and ${argument} cannot be combined`);
+      tailwindFlag = argument;
+      options.tailwind = argument === '--tailwind';
+    }
+    else if (argument === '--skills' || argument === '--no-skills') {
+      if (skillsFlag) throw new Error(`${skillsFlag} and ${argument} cannot be combined`);
+      skillsFlag = argument;
+      options.skills = argument === '--skills';
+    }
     else if (argument === '--yes') options.yes = true;
-    else if (argument === '--lang') options.language = arguments_[++index] as Language;
-    else if (argument === '--package-manager') options.packageManager = arguments_[++index] as PackageManager;
+    else if (argument === '--lang') {
+      if (index + 1 >= arguments_.length) throw new Error('--lang requires js or ts');
+      options.language = arguments_[++index] as Language;
+    }
+    else if (argument === '--package-manager') {
+      if (index + 1 >= arguments_.length) throw new Error('--package-manager requires npm, pnpm, yarn, or bun');
+      options.packageManager = arguments_[++index] as PackageManager;
+    }
     else if (argument.startsWith('-')) throw new Error(`Unknown option: ${argument}`);
     else if (!options.directory) options.directory = argument;
     else throw new Error(`Unexpected argument: ${argument}`);

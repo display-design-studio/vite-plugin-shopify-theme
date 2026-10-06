@@ -1,5 +1,9 @@
 # @display-studio/vite-plugin-shopify-theme
 
+[![CI](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/display-design-studio/vite-plugin-shopify-theme/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@display-studio/vite-plugin-shopify-theme)](https://www.npmjs.com/package/@display-studio/vite-plugin-shopify-theme)
+[![license](https://img.shields.io/npm/l/@display-studio/vite-plugin-shopify-theme)](./LICENSE)
+
 A zero-runtime-dependency Vite 8 plugin and setup CLI for explicit Shopify theme entries.
 
 ## Requirements
@@ -53,4 +57,4 @@ export default defineConfig({
 
 Every entry remains explicit. Generated output is deterministic, stale cleanup is restricted to recorded plugin-owned assets, and manual theme files are preserved.
 
-Read the complete [documentation](https://display-design-studio.github.io/vite-plugin-shopify-theme/) for CLI flags, development modes, configuration, frameworks, advanced workflows, API, and troubleshooting.
+Read [why this plugin exists](https://display-design-studio.github.io/vite-plugin-shopify-theme/why-this-plugin) and the complete [documentation](https://display-design-studio.github.io/vite-plugin-shopify-theme/) for CLI flags, development modes, configuration, frameworks, advanced workflows, API, and troubleshooting.

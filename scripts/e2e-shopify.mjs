@@ -7,8 +7,7 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const themeRoot = join(repositoryRoot, 'playground/skeleton-theme');
 const snippetPath = join(themeRoot, 'snippets/vite-tag.liquid');
-const viteBin = join(repositoryRoot, 'node_modules/vite/bin/vite.js');
-const shopifyBin = join(themeRoot, 'node_modules/@shopify/cli/bin/run.js');
+const cliBin = join(repositoryRoot, 'dist/cli.js');
 const host = '127.0.0.1';
 const vitePort = environmentPort('SHOPIFY_VITE_PORT', 5173);
 const shopifyPort = environmentPort('SHOPIFY_THEME_PORT', 9292);
@@ -39,27 +38,25 @@ try {
   await assertPortAvailable('Vite', vitePort);
   await assertPortAvailable('Shopify preview', shopifyPort);
 
-  const viteEnvironment = { ...process.env };
-  delete viteEnvironment.SHOPIFY_VITE_ORIGIN;
-  const vite = startProcess('Vite', process.execPath, [viteBin, '--host', host, '--port', String(vitePort), '--strictPort', '--clearScreen', 'false'], {
+  const developmentEnvironment = { ...process.env };
+  delete developmentEnvironment.SHOPIFY_VITE_ORIGIN;
+  developmentEnvironment.PATH = `${join(themeRoot, 'node_modules', '.bin')}${process.platform === 'win32' ? ';' : ':'}${developmentEnvironment.PATH ?? ''}`;
+  developmentEnvironment.SHOPIFY_FLAG_PATH = themeRoot;
+  const development = startProcess('vite-shopify-theme dev', process.execPath, [cliBin, 'dev', '--host', host, '--port', String(vitePort), '--strictPort', '--clearScreen', 'false'], {
     cwd: themeRoot,
-    env: { ...viteEnvironment, NO_COLOR: '1' },
+    env: { ...developmentEnvironment, NO_COLOR: '1', SHOPIFY_CLI_NO_ANALYTICS: '1', SHOPIFY_FLAG_PORT: String(shopifyPort) },
   });
-  await waitForResponse(`http://${host}:${vitePort}/@vite/client`, vite, 'Vite');
+  await waitForResponse(`http://${host}:${vitePort}/@vite/client`, development, 'Vite');
   log(`Vite is ready at http://${host}:${vitePort}.`);
 
-  const shopify = startProcess('Shopify CLI', process.execPath, [shopifyBin, 'theme', 'dev', '--host', host, '--port', String(shopifyPort), '--no-color'], {
-    cwd: themeRoot,
-    env: { ...process.env, NO_COLOR: '1', SHOPIFY_CLI_NO_ANALYTICS: '1' },
-  });
   const previewUrl = `http://${host}:${shopifyPort}/`;
-  const html = await waitForPreview(previewUrl, shopify);
+  const html = await waitForPreview(previewUrl, development);
   log(`Shopify preview is ready at ${previewUrl}.`);
 
   const assetUrls = developmentAssetUrls(html);
   await verifyAsset(assetUrls.css, 'theme.css', '--vite-demo-accent');
   await verifyAsset(assetUrls.script, 'theme.ts', 'dataset.vite');
-  log('Shopify rendered the development tags and both entrypoints were served by Vite.');
+  log('The public dev command rendered Liquid and served both entrypoints through Vite.');
 } catch (error) {
   if (!interruptedSignal) {
     process.exitCode = 1;

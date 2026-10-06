@@ -47,6 +47,9 @@ try {
   const installedPackage = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme');
   const cliHelp = execFileSync(process.execPath, [join(installedPackage, 'dist', 'cli.js'), '--help'], { cwd: consumer, encoding: 'utf8' });
   if (!cliHelp.includes('vite-shopify-theme init') || !cliHelp.includes('vite-shopify-theme dev')) throw new Error('The installed executable is unavailable.');
+  const installedBin = join(consumer, 'node_modules', '.bin', `vite-shopify-theme${process.platform === 'win32' ? '.cmd' : ''}`);
+  const binHelp = execFileSync(installedBin, ['--help'], { cwd: consumer, encoding: 'utf8', shell: process.platform === 'win32' });
+  if (!binHelp.includes('vite-shopify-theme init') || !binHelp.includes('vite-shopify-theme dev')) throw new Error('The package-manager executable shim is unavailable.');
   const assets = join(consumer, 'assets');
   const manifest = JSON.parse(readFileSync(join(assets, 'vite-manifest.json'), 'utf8'));
   for (const source of ['frontend/entrypoints/theme.css', 'frontend/entrypoints/theme.ts']) {
