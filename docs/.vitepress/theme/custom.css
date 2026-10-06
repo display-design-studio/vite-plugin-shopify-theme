@@ -1,0 +1,86 @@
+:root {
+  --vp-c-brand-1: #2f719f;
+  --vp-c-brand-2: #285f88;
+  --vp-c-brand-3: #204e70;
+  --vp-c-brand-soft: rgba(47, 113, 159, 0.14);
+  --vp-c-tip-1: #08783e;
+  --vp-c-tip-2: #006e38;
+  --vp-c-tip-3: #005f30;
+  --vp-c-tip-soft: rgba(0, 128, 67, 0.14);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-bg: #2f719f;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-hover-text: #fff;
+  --vp-button-brand-hover-bg: #285f88;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-active-text: #fff;
+  --vp-button-brand-active-bg: #204e70;
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #008060 10%, #646cff 58%, #00c6ff 100%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(0, 128, 96, 0.42), rgba(100, 108, 255, 0.38) 62%, rgba(255, 198, 0, 0.28));
+  --vp-home-hero-image-filter: blur(54px);
+}
+
+.dark {
+  --vp-c-brand-1: #78c9d6;
+  --vp-c-brand-2: #91d9e3;
+  --vp-c-brand-3: #afe7ed;
+  --vp-c-brand-soft: rgba(120, 201, 214, 0.16);
+  --vp-c-tip-1: #67d88a;
+  --vp-c-tip-2: #50c878;
+  --vp-c-tip-3: #3cad65;
+  --vp-c-tip-soft: rgba(80, 200, 120, 0.16);
+  --vp-button-brand-text: #071b22;
+  --vp-button-brand-bg: #78c9d6;
+  --vp-button-brand-hover-text: #071b22;
+  --vp-button-brand-hover-bg: #91d9e3;
+  --vp-button-brand-active-text: #071b22;
+  --vp-button-brand-active-bg: #afe7ed;
+  --vp-home-hero-name-background: linear-gradient(120deg, #67d88a 5%, #a9aefc 58%, #51d7ff 100%);
+}
+
+.VPHomeHero .image-bg {
+  opacity: 0.72;
+}
+
+.VPFeature {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 20%, var(--vp-c-divider));
+  background: linear-gradient(145deg, var(--vp-c-bg-soft), color-mix(in srgb, var(--vp-c-bg-soft) 92%, #646cff));
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.VPFeature:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 55%, var(--vp-c-divider));
+  box-shadow: 0 12px 32px rgba(47, 113, 159, 0.12);
+  transform: translateY(-2px);
+}
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid color-mix(in srgb, #646cff 22%, var(--vp-c-divider));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--vp-c-brand-1) 72%, #646cff);
+}
+
+.vp-doc .custom-block {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 35%, var(--vp-c-divider));
+}
+
+.vp-doc a:focus-visible,
+.VPButton:focus-visible,
+.VPNavBarMenuLink:focus-visible,
+.VPSidebarItem a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--vp-c-brand-1) 72%, #646cff);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+  .VPHero .name,
+  .VPHero .text {
+    max-width: 100%;
+  }
+
+  .VPHomeHero .actions {
+    gap: 10px;
+  }
+}
