@@ -1,6 +1,6 @@
 {
   "name": "@display-studio/vite-plugin-shopify-theme",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A focused Vite 8 integration for Shopify themes",
   "type": "module",
   "license": "MIT",

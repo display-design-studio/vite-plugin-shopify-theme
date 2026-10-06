@@ -2,6 +2,18 @@
 
 All notable changes to this package are documented here.
 
+## 0.4.1
+
+### Fixed
+
+- Fixed `init` failing to create a new theme because `shopify theme init --latest` cannot clone releases shallowly; new themes now clone the pinned Skeleton `v1.0.0` release.
+- Fixed `init` generating a `package.json` without `"type": "module"`, which made Vite fail to load the ESM-only plugin from `vite.config`.
+- Fixed `init` writing `.shopifyignore` directory patterns (`node_modules/`, `frontend/`) that Shopify CLI warns about; it now writes `node_modules/*` and `frontend/*`.
+
+### Changed
+
+- `init` language and package manager prompts are now selectable with the arrow keys in interactive terminals.
+
 ## Unreleased
 
 ### Added
