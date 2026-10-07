@@ -68,7 +68,7 @@ export function validateFiles(files) {
 
 export function validateMetadata(manifest) {
   strictEqual(manifest.name, '@display-studio/vite-plugin-shopify-theme', 'package name differs');
-  strictEqual(manifest.version, '0.4.1', 'package version differs');
+  strictEqual(manifest.version, '0.4.2', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
   strictEqual(manifest.main, './dist/index.js', 'main entrypoint differs');

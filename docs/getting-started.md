@@ -3,10 +3,10 @@
 ## Create a theme
 
 1. Run `npx @display-studio/vite-plugin-shopify-theme init my-theme`.
-2. Review the wizard summary. TypeScript, npm (or a detected manager), Tailwind, and Shopify AI Toolkit skills are selected by default.
+2. Review the wizard summary. TypeScript, npm (or a detected manager), and Tailwind are selected by default.
 3. Run `cd my-theme && npm run dev`.
 
-When the target does not exist, setup runs Shopify's latest Skeleton initializer.
+When the target does not exist, setup clones Shopify's Skeleton `v1.0.0` release without its git history.
 
 ## Configure an existing theme
 

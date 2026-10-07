@@ -38,7 +38,7 @@ A zero-runtime-dependency Vite 8 plugin and setup CLI for explicit Shopify theme
 
 2. Start local development with `npm run dev`.
 
-The wizard defaults to TypeScript, the detected package manager (npm otherwise), Tailwind CSS, and Shopify AI Toolkit skills. Pass `--yes` for those defaults or `--no-tailwind` / `--no-skills` to opt out.
+The wizard defaults to TypeScript, the detected package manager (npm otherwise), and Tailwind CSS. Pass `--yes` for those defaults or `--no-tailwind` to opt out.
 
 ## Minimal configuration
 

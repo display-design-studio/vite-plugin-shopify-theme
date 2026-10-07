@@ -50,3 +50,13 @@ Copy mode maintains an ignored, instrumented theme mirror without rewriting sour
 ## Keep the connection private
 
 Retain Vite DevTools client authentication. The first connection may ask you to authorize the browser with a one-time code. Never commit, log, or share authentication tokens. Setting `clientAuth: false` exposes DevTools server and filesystem capabilities to any browser that can reach Vite, so avoid it outside a fully trusted local environment.
+
+## Shopify AI Toolkit skills
+
+[Shopify AI Toolkit](https://github.com/Shopify/shopify-ai-toolkit) skills give coding agents Shopify-specific guidance. Install them from the theme root when you want them:
+
+```sh
+npx skills add Shopify/shopify-ai-toolkit
+```
+
+The toolkit has telemetry enabled by default; read the [privacy and opt-out information](https://github.com/Shopify/shopify-ai-toolkit#telemetry) first. The skills CLI lets you choose the project scope and agents, and nothing is added to your project dependencies.

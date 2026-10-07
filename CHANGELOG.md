@@ -14,6 +14,18 @@ All notable changes to this package are documented here.
 
 - `init` language and package manager prompts are now selectable with the arrow keys in interactive terminals.
 
+## 0.4.2
+
+### Fixed
+
+- Fixed first-run `bun dev` failing with `Could not find asset snippets/vite-tag.liquid`: `dev` now starts Shopify CLI only after Vite has written the development snippet.
+- `init` now creates a placeholder `snippets/vite-tag.liquid` (never replacing an existing one), so a new theme renders without errors before the first build or `dev`.
+- Removed the cloned Skeleton git history from new themes created by `init`.
+
+### Changed
+
+- `init` no longer installs Shopify AI Toolkit skills; they are documented in the cookbook. `--no-skills` is accepted and ignored, and `--skills` was removed.
+
 ## Unreleased
 
 ### Added
