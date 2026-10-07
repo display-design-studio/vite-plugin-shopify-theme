@@ -27,6 +27,7 @@ export interface InitRuntime {
 
 // Pinned release: `--latest` fails on shallow clones and `main` uses Liquid tags stores may not support yet.
 const skeletonUrl = 'https://github.com/Shopify/skeleton-theme.git#v1.0.0';
+const placeholderSnippet = '{% comment %} Placeholder created by vite-shopify-theme init. It is replaced by `vite build` and `dev`. {% endcomment %}\n';
 const managers = ['npm', 'pnpm', 'yarn', 'bun'] as const;
 
 function detectedManager(root: string): PackageManager {
@@ -183,6 +184,9 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
     mkdirSync(dirname(path), { recursive: true });
     if (!existsSync(path)) writeFileSync(path, contents);
   }
+  // Placeholder so the layout's render never fails before the first dev/build; both overwrite and later restore it.
+  const snippetPath = join(root, 'snippets/vite-tag.liquid');
+  if (!existsSync(snippetPath)) writeFileSync(snippetPath, placeholderSnippet);
   const nextPackage = `${JSON.stringify(nextManifest, null, 2)}\n`;
   if (!existsSync(packagePath) || readFileSync(packagePath, 'utf8') !== nextPackage) writeFileSync(packagePath, nextPackage);
   const gitignorePath = join(root, '.gitignore');

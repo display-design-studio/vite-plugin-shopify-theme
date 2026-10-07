@@ -80,6 +80,16 @@ describe('setup CLI', () => {
     expect(calls[0]).toEqual(['shopify', 'theme', 'init', 'new-theme', '--path', parent, '--clone-url', 'https://github.com/Shopify/skeleton-theme.git#v1.0.0']);
   });
 
+  it('creates a placeholder snippet but never replaces an existing one', async () => {
+    const root = theme();
+    await initialize({ yes: true, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() });
+    expect(readFileSync(join(root, 'snippets/vite-tag.liquid'), 'utf8')).toContain('Placeholder created by vite-shopify-theme init');
+    const manual = theme();
+    writeFileSync(join(manual, 'snippets/vite-tag.liquid'), 'manual\n');
+    await initialize({ yes: true, directory: manual }, { version: '0.4.0', cwd: '/', run: vi.fn() });
+    expect(readFileSync(join(manual, 'snippets/vite-tag.liquid'), 'utf8')).toBe('manual\n');
+  });
+
   it('keeps the git repository of an existing theme', async () => {
     const root = theme();
     mkdirSync(join(root, '.git'));
