@@ -5,14 +5,13 @@ import { initialize, type InitOptions, type Language, type PackageManager } from
 import { runDevelopment } from './cli/dev.js';
 
 function usage() {
-  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options]\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --skills | --no-skills\n  --yes\n`;
+  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options]\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --yes\n`;
 }
 
 export function parseInitArguments(arguments_: string[]): InitOptions {
   const options: InitOptions = {};
   let modeFlag: string | undefined;
   let tailwindFlag: string | undefined;
-  let skillsFlag: string | undefined;
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     if (argument === '--new' || argument === '--existing') {
@@ -25,11 +24,8 @@ export function parseInitArguments(arguments_: string[]): InitOptions {
       tailwindFlag = argument;
       options.tailwind = argument === '--tailwind';
     }
-    else if (argument === '--skills' || argument === '--no-skills') {
-      if (skillsFlag) throw new Error(`${skillsFlag} and ${argument} cannot be combined`);
-      skillsFlag = argument;
-      options.skills = argument === '--skills';
-    }
+    else if (argument === '--no-skills') continue; // deprecated no-op: init no longer installs skills
+    else if (argument === '--skills') throw new Error('--skills was removed: install Shopify AI Toolkit skills with `npx skills add Shopify/shopify-ai-toolkit` (see the cookbook)');
     else if (argument === '--yes') options.yes = true;
     else if (argument === '--lang') {
       if (index + 1 >= arguments_.length) throw new Error('--lang requires js or ts');
@@ -51,7 +47,7 @@ export function parseInitArguments(arguments_: string[]): InitOptions {
 async function main() {
   const [command, ...arguments_] = process.argv.slice(2);
   if (!command || command === '--help' || command === '-h') { console.log(usage()); return; }
-  if (command === 'dev') { runDevelopment(arguments_); return; }
+  if (command === 'dev') { await runDevelopment(arguments_).started; return; }
   if (command !== 'init') throw new Error(`Unknown command: ${command}\n\n${usage()}`);
   await initialize(parseInitArguments(arguments_), { version: __PACKAGE_VERSION__ });
 }

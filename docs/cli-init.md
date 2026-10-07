@@ -4,13 +4,17 @@
 vite-shopify-theme init [directory] \
   [--new | --existing] [--lang js | ts] \
   [--package-manager npm | pnpm | yarn | bun] \
-  [--tailwind | --no-tailwind] [--skills | --no-skills] [--yes]
+  [--tailwind | --no-tailwind] [--yes]
 ```
 
-`--yes` accepts TypeScript, the detected package manager (npm otherwise), Tailwind, and skills. Explicit negative flags take precedence.
+`--yes` accepts TypeScript, the detected package manager (npm otherwise), and Tailwind. Explicit negative flags take precedence.
 
 The command installs Vite and the running plugin version as development dependencies. It writes explicit entrypoints, Vite config, package scripts, and narrow ignore patterns. Identical files make reruns safe; incompatible files stop setup before generated configuration is written.
 
 ## Shopify AI Toolkit
 
-Setup displays the toolkit telemetry notice and [privacy/opt-out information](https://github.com/Shopify/shopify-ai-toolkit#telemetry) before confirmation. Interactive setup delegates choices to `npx skills add Shopify/shopify-ai-toolkit`; `--yes` lets that CLI auto-detect the project scope and available agents in non-interactive mode. A skills failure leaves Vite setup in place and prints the retry command. Neither tool is added to project dependencies.
+`init` does not install Shopify AI Toolkit skills. See the [cookbook](/cookbook/developer-experience#shopify-ai-toolkit-skills) to add them. The deprecated `--no-skills` flag is accepted and ignored; `--skills` was removed.
+
+## New themes and git
+
+A new theme is cloned from Shopify's Skeleton `v1.0.0` release. The clone's git history is removed, so the project starts without a repository; run `git init` when you want one. An existing theme's repository is never touched.

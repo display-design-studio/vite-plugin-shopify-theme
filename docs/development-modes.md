@@ -1,6 +1,6 @@
 # 3. Development Modes
 
-`npm run dev` runs installed Vite through Node and `shopify theme dev` in the current directory. Arguments are forwarded to Vite: `npm run dev -- --host 0.0.0.0`.
+`npm run dev` runs installed Vite through Node and `shopify theme dev` in the current directory. Arguments are forwarded to Vite: `npm run dev -- --host 0.0.0.0`. Vite starts first, and Shopify CLI starts only after the plugin has written the development snippet, so the first sync includes `snippets/vite-tag.liquid`. If the snippet is not written within 30 seconds, a warning is printed and Shopify CLI starts anyway.
 
 The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals, stops the sibling process when either exits, and propagates failures. On Windows, a shell is used only for the Shopify shim.
 

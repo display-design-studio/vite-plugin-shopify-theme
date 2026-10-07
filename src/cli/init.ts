@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { createInterface } from 'node:readline/promises';
@@ -13,7 +13,6 @@ export interface InitOptions {
   language?: Language;
   packageManager?: PackageManager;
   tailwind?: boolean;
-  skills?: boolean;
   yes?: boolean;
 }
 
@@ -26,7 +25,6 @@ export interface InitRuntime {
   log?: (message: string) => void;
 }
 
-const telemetryNotice = 'Shopify AI Toolkit has telemetry enabled by default. Privacy and opt-out: https://github.com/Shopify/shopify-ai-toolkit#telemetry';
 // Pinned release: `--latest` fails on shallow clones and `main` uses Liquid tags stores may not support yet.
 const skeletonUrl = 'https://github.com/Shopify/skeleton-theme.git#v1.0.0';
 const managers = ['npm', 'pnpm', 'yarn', 'bun'] as const;
@@ -155,15 +153,15 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   if (!exists) {
     mkdirSync(dirname(root), { recursive: true });
     run('shopify', ['theme', 'init', basename(root), '--path', dirname(root), '--clone-url', skeletonUrl], dirname(root));
+    // The clone carries Skeleton's git history; a new project should start without it.
+    rmSync(join(root, '.git'), { recursive: true, force: true });
   }
   if (!validTheme(root)) throw new Error(`Not a Shopify theme: ${root}. Expected assets, layout, and snippets directories; no files were changed.`);
 
   const language: Language = options.language ?? (options.yes ? 'ts' : await select<Language>('Language', ['ts', 'js'], 'ts'));
   const packageManager = options.packageManager ?? (options.yes ? detectedManager(root) : await select('Package manager', managers, detectedManager(root)));
   const tailwind = options.tailwind ?? (options.yes ? true : await confirm('Add Tailwind CSS?', true));
-  if (options.skills !== false) log(telemetryNotice);
-  const skills = options.skills ?? (options.yes ? true : await confirm('Install Shopify AI Toolkit skills?', true));
-  if (!options.yes && !await confirm(`Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}, skills ${skills ? 'on' : 'off'}?`, true)) {
+  if (!options.yes && !await confirm(`Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}?`, true)) {
     log('Setup cancelled.');
     return { root, cancelled: true };
   }
@@ -206,19 +204,7 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   if (tailwind) packages.push('tailwindcss', '@tailwindcss/vite');
   const [command, args] = installCommand(packageManager, packages);
   run(command, [...args], root);
-  if (skills) {
-    try {
-      const skillArgs = ['skills', 'add', 'Shopify/shopify-ai-toolkit'];
-      if (options.yes) skillArgs.unshift('--yes');
-      if (options.yes) skillArgs.push('--yes');
-      run('npx', skillArgs, root);
-    } catch (error) {
-      throw new Error(`Vite setup completed, but Shopify AI Toolkit installation failed. Retry from ${root} with: npx skills add Shopify/shopify-ai-toolkit`, { cause: error });
-    }
-  }
   if (layoutInstructions) log(layoutInstructions);
   log(`Configured Shopify theme at ${root}`);
   return { root, cancelled: false, layoutInstructions };
 }
-
-export { telemetryNotice };
