@@ -116,11 +116,15 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
-        let removed = 0;
-        for (const file of previous.files) {
-          const target = canonicalPathInside(options.themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
-          if (!current.has(file) && inside(assetsRoot, target) && existsSync(target)) { removeFile(target, 'stale plugin-owned asset'); removed += 1; }
-        }
+        const stale = previous.files
+          .filter((file) => !current.has(file))
+          .map((file) => resolveOwnedAsset(options.themeRoot, assetsRoot, file))
+          .filter((target) => existsSync(target));
+        // Record old and new files together before deleting anything, so a failed
+        // cleanup or state write never leaves generated assets untracked.
+        if (stale.length) atomicWrite(statePath, `${JSON.stringify({ files: [...new Set([...previous.files, ...files])].sort() }, null, 2)}\n`);
+        for (const target of stale) removeFile(target, 'stale plugin-owned asset');
+        const removed = stale.length;
         atomicWrite(statePath, `${JSON.stringify({ files }, null, 2)}\n`);
         logDiagnostic('BUILD_OUTPUT_WRITTEN', `assets=${files.length} removed=${removed} snippet=${sourceKey(snippet, options.themeRoot)}`);
       } catch (error) {
@@ -182,6 +186,12 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       return [];
     },
   };
+}
+
+function resolveOwnedAsset(themeRoot: string, assetsRoot: string, file: string): string {
+  const target = canonicalPathInside(themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
+  if (!inside(assetsRoot, target)) throw diagnostic('PATH_OUTSIDE_THEME', `Recorded plugin-owned asset "${file}" resolves outside the assets directory.`);
+  return target;
 }
 
 function localOrigin(server: ViteDevServer): string {

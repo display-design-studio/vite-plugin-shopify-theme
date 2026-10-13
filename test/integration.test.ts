@@ -260,13 +260,15 @@ describe('isolated builds', () => {
     expect(existsSync(lockPath(root))).toBe(false);
   });
 
-  it('reports stale asset cleanup failures without committing new ownership state', async () => {
+  it('keeps stale and new assets recorded when stale asset cleanup fails', async () => {
     const root = fixture();
     mkdirSync(join(root, 'assets/stale.js'));
-    const state = `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`;
-    writeFileSync(statePath(root), state);
+    writeFileSync(statePath(root), `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`);
     await expect(buildTheme(root)).rejects.toThrow(/remove stale plugin-owned asset.*stale\.js.*ownership and permissions/i);
-    expect(readFileSync(statePath(root), 'utf8')).toBe(state);
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    expect(recorded).toContain('stale.js');
+    expect(recorded.filter((file) => file !== 'stale.js').length).toBeGreaterThan(0);
+    expect(recorded.every((file) => file === 'stale.js' || existsSync(join(root, 'assets', file)))).toBe(true);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
     expect(statSync(join(root, 'assets/stale.js')).isDirectory()).toBe(true);
     expect(existsSync(lockPath(root))).toBe(false);
