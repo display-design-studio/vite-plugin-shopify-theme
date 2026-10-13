@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import type { Manifest } from 'vite';
 import { canonicalPathInside, diagnostic, errorDetail, isRecord } from './config.js';
@@ -9,7 +10,7 @@ const LOCK_DIR = '.vite-shopify-theme.lock';
 const LOCK_FILE = 'owner.json';
 
 export interface DevelopmentRecovery { snippet: string; developmentHash: string; original: { exists: boolean; content: string } }
-export interface LockOwner { token: string; pid: number; mode: 'build' | 'development'; startedAt: string; development?: DevelopmentRecovery }
+export interface LockOwner { token: string; pid: number; host?: string; mode: 'build' | 'development'; startedAt: string; development?: DevelopmentRecovery }
 export interface OwnershipState { files: string[] }
 
 export function readText(path: string, purpose: string): string {
@@ -69,7 +70,7 @@ function ownerPath(root: string): string { return canonicalPathInside(root, reso
 function isOriginal(value: unknown): value is DevelopmentRecovery['original'] { return isRecord(value) && typeof value.exists === 'boolean' && typeof value.content === 'string'; }
 function isDevelopmentRecovery(value: unknown): value is DevelopmentRecovery { return isRecord(value) && typeof value.snippet === 'string' && typeof value.developmentHash === 'string' && isOriginal(value.original); }
 function isLockOwner(value: unknown): value is LockOwner {
-  return isRecord(value) && typeof value.token === 'string' && value.token.length > 0 && Number.isInteger(value.pid) && (value.pid as number) > 0 && (value.mode === 'build' || value.mode === 'development') && typeof value.startedAt === 'string' && value.startedAt.length > 0 && (value.development === undefined || isDevelopmentRecovery(value.development));
+  return isRecord(value) && typeof value.token === 'string' && value.token.length > 0 && Number.isInteger(value.pid) && (value.pid as number) > 0 && (value.mode === 'build' || value.mode === 'development') && typeof value.startedAt === 'string' && value.startedAt.length > 0 && (value.host === undefined || typeof value.host === 'string') && (value.development === undefined || isDevelopmentRecovery(value.development));
 }
 
 function readOwner(root: string): LockOwner | undefined {
@@ -87,6 +88,11 @@ function processIsAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; }
 }
 
+/** A lock from another host cannot be probed by pid, so it is treated as live. */
+function ownerMayBeAlive(owner: LockOwner): boolean {
+  return (owner.host !== undefined && owner.host !== hostname()) || processIsAlive(owner.pid);
+}
+
 function recoverDevelopment(root: string, owner: LockOwner): void {
   const recovery = owner.development;
   if (!recovery || !existsSync(recovery.snippet)) return;
@@ -97,12 +103,12 @@ function recoverDevelopment(root: string, owner: LockOwner): void {
 }
 
 export function acquireLock(root: string, mode: LockOwner['mode']): LockOwner {
-  const owner: LockOwner = { token: randomUUID(), pid: process.pid, mode, startedAt: new Date().toISOString() };
+  const owner: LockOwner = { token: randomUUID(), pid: process.pid, host: hostname(), mode, startedAt: new Date().toISOString() };
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try { mkdirSync(lockPath(root)); } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw diagnostic('LOCK_CREATE_FAILED', `Could not create ownership lock at "${lockPath(root)}" (${errorDetail(error)}). Check that the theme root is writable and retry.`, error);
       const current = readOwner(root);
-      if (current && processIsAlive(current.pid)) throw diagnostic('LOCK_ACTIVE', `Cannot start ${mode}: ${current.mode} process ${current.pid} has owned ${root} since ${current.startedAt}. Stop it before trying again.`);
+      if (current && ownerMayBeAlive(current)) throw diagnostic('LOCK_ACTIVE', `Cannot start ${mode}: ${current.mode} process ${current.pid} has owned ${root} since ${current.startedAt}. Stop it before trying again.`);
       if (current) recoverDevelopment(root, current);
       if (readOwner(root)?.token !== current?.token) continue;
       const stalePath = `${lockPath(root)}.stale.${owner.token}`;

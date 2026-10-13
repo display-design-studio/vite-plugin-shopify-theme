@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -395,10 +395,10 @@ describe('development ownership and recovery', () => {
   });
 });
 
-function writeStaleLock(root: string, temporary: string, original: string, token: string) {
+function writeStaleLock(root: string, temporary: string, original: string, token: string, host?: string) {
   mkdirSync(lockPath(root));
   writeFileSync(join(lockPath(root), 'owner.json'), JSON.stringify({
-    token, pid: 999_999_999, mode: 'development', startedAt: '2020-01-01T00:00:00.000Z',
+    token, pid: 999_999_999, ...(host ? { host } : {}), mode: 'development', startedAt: '2020-01-01T00:00:00.000Z',
     development: {
       snippet: snippetPath(root), developmentHash: createHash('sha256').update(temporary).digest('hex'),
       original: { exists: true, content: original },
@@ -447,5 +447,21 @@ describe('init followed by build', () => {
     expect(snippet).toContain("{% when 'theme.js' %}");
     expect(snippet).not.toContain('Placeholder');
     expect(existsSync(lockPath(themeRoot))).toBe(false);
+  });
+});
+
+describe('lock host awareness', () => {
+  it('fails safely on a lock whose owner runs on another host', () => {
+    const root = fixture();
+    writeStaleLock(root, 'temporary\n', 'original\n', 'remote-token', 'another-host.invalid');
+    expect(() => devServer(root)).toThrow(/\[shopify-theme:LOCK_ACTIVE\]/);
+    expect(existsSync(lockPath(root))).toBe(true);
+  });
+
+  it('records the host in new lock metadata', () => {
+    const root = fixture();
+    const active = devServer(root);
+    expect(JSON.parse(readFileSync(join(lockPath(root), 'owner.json'), 'utf8')).host).toBe(hostname());
+    active.httpServer.emit('close');
   });
 });
