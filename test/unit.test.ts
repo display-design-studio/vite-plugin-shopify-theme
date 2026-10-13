@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { collectManifestTags, developmentSnippet, normalizeOptions, productionSnippet, shopifyTheme } from '../src/index.js';
 import { renderProductionSnippet } from '../src/snippets.js';
+import { SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { runDevelopment } from '../src/cli/dev.js';
@@ -501,10 +502,14 @@ describe('Vite 8 configuration', () => {
     expect(contribution).toMatchObject({ publicDir: false, input: { app: join(root, 'frontend/theme.ts') } });
     expect(contribution.build.rolldownOptions.input).toEqual({ app: join(root, 'frontend/theme.ts') });
     expect(contribution.server).toMatchObject({
-      cors: { origin: 'https://vite.example.test' }, allowedHosts: ['vite.example.test'],
+      allowedHosts: ['vite.example.test'],
       ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },
     });
     expect(contribution.server.hmr).toBeUndefined();
+    const origins = contribution.server.cors.origin as Array<string | RegExp>;
+    const allowed = (origin: string) => origins.some((rule) => typeof rule === 'string' ? rule === origin : rule.test(origin));
+    for (const origin of ['https://vite.example.test', 'https://shop.myshopify.com', 'https://admin.shopify.com', 'http://127.0.0.1:9292', 'http://localhost:9292']) expect(allowed(origin), origin).toBe(true);
+    for (const origin of ['https://evil.example', 'https://myshopify.com.evil.example', 'http://shop.myshopify.com', 'https://notshopify.com']) expect(allowed(origin), origin).toBe(false);
   });
 
   it('replaces direct stylesheet inputs with one virtual input only when CSS splitting is disabled', () => {
@@ -569,5 +574,13 @@ describe('development updates', () => {
     const modules = plugin.handleHotUpdate({ file: join(root, 'sections/hello-world.liquid'), server: { ws: { send } } });
     expect(send).toHaveBeenCalledWith({ type: 'custom', event: 'shopify:theme-update', data: {} });
     expect(modules).toEqual([]);
+  });
+});
+
+describe('snippet size warning', () => {
+  it('stays quiet for small snippets and warns near Shopify\'s 256 kB limit', () => {
+    expect(snippetSizeWarning('x'.repeat(1000), 'snippets/vite-tag.liquid')).toBeUndefined();
+    const warning = snippetSizeWarning('x'.repeat(SNIPPET_SIZE_LIMIT - 1000), 'snippets/vite-tag.liquid');
+    expect(warning).toMatch(/^\[shopify-theme:SNIPPET_SIZE_NEAR_LIMIT\].*snippets\/vite-tag\.liquid.*262144/);
   });
 });

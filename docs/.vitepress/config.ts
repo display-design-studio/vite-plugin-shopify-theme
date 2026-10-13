@@ -18,9 +18,13 @@ export default defineConfig({
         { text: '1. Getting Started', link: '/getting-started' }, { text: '2. CLI init', link: '/cli-init' },
         { text: '3. Development Modes', link: '/development-modes' }, { text: '4. Configuration', link: '/configuration' },
         { text: '5. Tailwind & Frameworks', link: '/tailwind-frameworks' }, { text: '6. Advanced Workflows', link: '/advanced-workflows' },
+        { text: '7. Working with AI agents', link: '/agents' },
       ] },
       { text: 'Cookbook', collapsed: false, items: [
         { text: 'Overview', link: '/cookbook/' },
+        { text: 'Setup checklist', link: '/cookbook/setup-checklist' },
+        { text: 'Live Theme Editor with a tunnel', link: '/cookbook/theme-editor-and-tunnels' },
+        { text: 'Fonts, images, and vendor code', link: '/cookbook/fonts-images-vendors' },
         { text: 'Page-specific entrypoints', link: '/cookbook/page-specific-entrypoints' },
         { text: 'Developer experience', link: '/cookbook/developer-experience' },
         { text: 'Quality tooling', link: '/cookbook/quality-tooling' },

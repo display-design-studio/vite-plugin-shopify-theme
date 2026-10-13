@@ -1,6 +1,6 @@
 import { relative, sep } from 'node:path';
 import type { Manifest, ManifestChunk } from 'vite';
-import { diagnostic, isStyleEntry } from './config.js';
+import { diagnostic, formatDiagnostic, isStyleEntry } from './config.js';
 
 export const HOT_RELOAD_CLIENT = 'virtual:shopify-theme-hot-reload';
 export const RESOLVED_HOT_RELOAD_CLIENT = `\0${HOT_RELOAD_CLIENT}`;
@@ -23,9 +23,25 @@ if (import.meta.hot) {
 }
 `;
 
+// Shopify rejects theme files over 256 kB; warn early enough to act on it.
+export const SNIPPET_SIZE_LIMIT = 256 * 1024;
+const SNIPPET_SIZE_WARNING = Math.floor(SNIPPET_SIZE_LIMIT * 0.75);
+
+export function snippetSizeWarning(content: string, name: string): string | undefined {
+  const bytes = Buffer.byteLength(content);
+  if (bytes < SNIPPET_SIZE_WARNING) return undefined;
+  return formatDiagnostic('SNIPPET_SIZE_NEAR_LIMIT', `Generated snippet "${name}" is ${bytes} bytes; Shopify rejects theme files over ${SNIPPET_SIZE_LIMIT} bytes (256 kB). Reduce the number of entries or chunks, or disable \`build.modulePreload\`.`);
+}
+
 export function sourceKey(path: string, root: string): string { return relative(root, path).split(sep).join('/'); }
 
 export interface ManifestTags { preloads: string[]; styles: string[]; scripts: string[] }
+
+function entryChunk(manifest: Manifest, key: string): ManifestChunk {
+  const chunk = manifest[key];
+  if (!chunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+  return chunk;
+}
 
 export function collectManifestTags(manifest: Manifest, entrySources: string[]): ManifestTags {
   const preloads: string[] = []; const styles: string[] = []; const scripts: string[] = [];
@@ -35,8 +51,7 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
     for (const css of chunk.css ?? []) if (!seenCss.has(css)) { seenCss.add(css); styles.push(css); }
   };
   const visitImports = (key: string): void => {
-    const rootChunk = manifest[key];
-    if (!rootChunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+    const rootChunk = entryChunk(manifest, key);
     const stack: Array<{ key: string; chunk: ManifestChunk; index: number; imported?: ManifestChunk }> = [
       { key, chunk: rootChunk, index: 0 },
     ];
@@ -60,8 +75,7 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
     }
   };
   for (const source of entrySources) {
-    const chunk = manifest[source];
-    if (!chunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${source}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+    const chunk = entryChunk(manifest, source);
     addStyles(chunk); visitImports(source);
     if (!seenScripts.has(chunk.file)) { seenScripts.add(chunk.file); scripts.push(chunk.file); }
   }

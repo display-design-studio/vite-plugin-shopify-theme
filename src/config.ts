@@ -6,6 +6,10 @@ export const CSS_BUNDLE_ENTRY = 'style.css';
 export const CSS_BUNDLE_ID = 'virtual:shopify-theme-css-bundle';
 export const RESOLVED_CSS_BUNDLE_ID = `\0${CSS_BUNDLE_ID}`;
 const STYLE_ENTRY_RE = /\.(?:css|pcss|postcss|scss|sass|less|styl|stylus)$/i;
+// Browsers send the page's origin (storefront, Theme Editor, admin), not the tunnel's, so a fixed
+// `Access-Control-Allow-Origin` of the tunnel would block every Shopify page.
+const LOCAL_ORIGIN = /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
+const SHOPIFY_ORIGIN = /^https:\/\/(?:[a-z0-9-]+\.)*(?:myshopify|shopify)\.com$/i;
 const LIQUID_ENTRY_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export interface ShopifyThemeOptions {
@@ -34,7 +38,7 @@ export type DiagnosticCode =
   | 'LOCK_ACQUIRE_FAILED' | 'LOCK_ACTIVE' | 'LOCK_CHANGED' | 'LOCK_CREATE_FAILED' | 'LOCK_METADATA_INVALID' | 'LOCK_METADATA_MISSING' | 'LOCK_RECLAIM_FAILED' | 'LOCK_RELEASE_FAILED'
   | 'MANIFEST_ENTRY_MISSING' | 'MANIFEST_IMPORT_MISSING' | 'MANIFEST_INVALID'
   | 'PATH_MISSING' | 'PATH_OUTSIDE_THEME' | 'PATH_RESOLUTION_FAILED'
-  | 'STATE_INVALID' | 'THEME_STRUCTURE_INVALID';
+  | 'SNIPPET_SIZE_NEAR_LIMIT' | 'STATE_INVALID' | 'THEME_STRUCTURE_INVALID';
 
 export function isStyleEntry(path: string): boolean { return STYLE_ENTRY_RE.test(path); }
 
@@ -118,7 +122,11 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   try { themeRoot = realpathSync.native(configuredRoot); } catch (error) {
     throw diagnostic('CONFIG_THEME_ROOT', `Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
   }
-  if (!statSync(themeRoot).isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
+  let rootStat;
+  try { rootStat = statSync(themeRoot); } catch (error) {
+    throw diagnostic('CONFIG_THEME_ROOT', `Could not inspect theme root "${themeRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
+  }
+  if (!rootStat.isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
   validateThemeDirectory(themeRoot, resolve(themeRoot, 'assets'), 'Shopify assets directory');
   const configuredSnippet = options.snippet ?? 'snippets/vite-tag.liquid';
   const unresolvedSnippet = resolve(themeRoot, configuredSnippet);
@@ -170,7 +178,7 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
   if (user.build?.manifest !== undefined) throw configurationConflict('build.manifest', user.build.manifest, `the plugin manifest name ${JSON.stringify(VITE_MANIFEST)}`);
   if (user.build?.rolldownOptions?.input !== undefined) throw configurationConflict('build.rolldownOptions.input', user.build.rolldownOptions.input, 'the top-level plugin-owned `input`');
   const server = options.devOrigin ? {
-    cors: { origin: options.devOrigin.origin },
+    cors: { origin: [LOCAL_ORIGIN, SHOPIFY_ORIGIN, options.devOrigin.origin] },
     allowedHosts: [options.devOrigin.hostname],
     ws: { protocol: 'wss' as const, host: options.devOrigin.hostname, clientPort: Number(options.devOrigin.port || 443) },
   } : undefined;

@@ -15,3 +15,5 @@ When the target does not exist, setup clones Shopify's Skeleton `v1.0.0` release
 3. Run the generated `dev` script.
 
 Setup refuses incompatible manual files and never converts an invalid directory. If the layout cannot be patched unambiguously, it is preserved and exact instructions are printed.
+
+See the [setup checklist](./cookbook/setup-checklist) to verify each step, and [Working with AI agents](./agents) for agent instructions.
