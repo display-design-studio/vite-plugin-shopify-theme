@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { collectManifestTags, developmentSnippet, normalizeOptions, productionSnippet, shopifyTheme } from '../src/index.js';
 import { renderProductionSnippet } from '../src/snippets.js';
+import { SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { runDevelopment } from '../src/cli/dev.js';
@@ -573,5 +574,13 @@ describe('development updates', () => {
     const modules = plugin.handleHotUpdate({ file: join(root, 'sections/hello-world.liquid'), server: { ws: { send } } });
     expect(send).toHaveBeenCalledWith({ type: 'custom', event: 'shopify:theme-update', data: {} });
     expect(modules).toEqual([]);
+  });
+});
+
+describe('snippet size warning', () => {
+  it('stays quiet for small snippets and warns near Shopify\'s 256 kB limit', () => {
+    expect(snippetSizeWarning('x'.repeat(1000), 'snippets/vite-tag.liquid')).toBeUndefined();
+    const warning = snippetSizeWarning('x'.repeat(SNIPPET_SIZE_LIMIT - 1000), 'snippets/vite-tag.liquid');
+    expect(warning).toMatch(/^\[shopify-theme:SNIPPET_SIZE_NEAR_LIMIT\].*snippets\/vite-tag\.liquid.*262144/);
   });
 });

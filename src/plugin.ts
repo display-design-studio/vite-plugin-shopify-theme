@@ -5,7 +5,7 @@ import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, error
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
-import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, RESOLVED_HOT_RELOAD_CLIENT, sourceKey } from './snippets.js';
+import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, RESOLVED_HOT_RELOAD_CLIENT, snippetSizeWarning, sourceKey } from './snippets.js';
 
 type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT_ACTIVATED' | 'DEVELOPMENT_RESTORED' | 'HOT_RELOAD' | 'OWNERSHIP_ACQUIRED' | 'OWNERSHIP_RELEASED';
 
@@ -113,6 +113,8 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           modulePreload: config.build.modulePreload !== false,
           aggregateCss,
         });
+        const sizeWarning = snippetSizeWarning(generatedSnippet, sourceKey(snippet, options.themeRoot));
+        if (sizeWarning) config.logger.warn(sizeWarning);
         atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
