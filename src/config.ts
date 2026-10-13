@@ -122,7 +122,11 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   try { themeRoot = realpathSync.native(configuredRoot); } catch (error) {
     throw diagnostic('CONFIG_THEME_ROOT', `Could not resolve theme root "${configuredRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
   }
-  if (!statSync(themeRoot).isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
+  let rootStat;
+  try { rootStat = statSync(themeRoot); } catch (error) {
+    throw diagnostic('CONFIG_THEME_ROOT', `Could not inspect theme root "${themeRoot}" (${errorDetail(error)}). Check that it exists and is accessible.`, error);
+  }
+  if (!rootStat.isDirectory()) throw diagnostic('CONFIG_THEME_ROOT', `Theme root "${configuredRoot}" resolves to "${themeRoot}", which is not a directory.`);
   validateThemeDirectory(themeRoot, resolve(themeRoot, 'assets'), 'Shopify assets directory');
   const configuredSnippet = options.snippet ?? 'snippets/vite-tag.liquid';
   const unresolvedSnippet = resolve(themeRoot, configuredSnippet);

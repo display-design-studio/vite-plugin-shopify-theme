@@ -12,9 +12,8 @@ type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
   let config: ResolvedConfig;
-  let original: { exists: boolean; content: string } | undefined;
-  let developmentHash: string | undefined;
-  let developmentActive = false;
+  // Present only while the temporary development snippet is installed.
+  let development: { hash: string; original: { exists: boolean; content: string } } | undefined;
   let exitHandler: (() => void) | undefined;
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
@@ -23,11 +22,11 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
   };
   const restoreDevelopmentSnippet = () => {
-    if (!developmentActive || !existsSync(options.snippet)) return false;
+    if (!development || !existsSync(options.snippet)) return false;
     const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet', true);
-    if (sha(readText(snippet, 'development snippet')) !== developmentHash) return false;
-    if (original?.exists) atomicWrite(snippet, original.content); else removeFile(snippet, 'temporary development snippet');
-    developmentActive = false;
+    if (sha(readText(snippet, 'development snippet')) !== development.hash) return false;
+    if (development.original.exists) atomicWrite(snippet, development.original.content); else removeFile(snippet, 'temporary development snippet');
+    development = undefined;
     logDiagnostic('DEVELOPMENT_RESTORED', `snippet=${sourceKey(options.snippet, options.themeRoot)}`);
     return true;
   };
@@ -118,11 +117,15 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
-        let removed = 0;
-        for (const file of previous.files) {
-          const target = canonicalPathInside(options.themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
-          if (!current.has(file) && inside(assetsRoot, target) && existsSync(target)) { removeFile(target, 'stale plugin-owned asset'); removed += 1; }
-        }
+        const stale = previous.files
+          .filter((file) => !current.has(file))
+          .map((file) => resolveOwnedAsset(options.themeRoot, assetsRoot, file))
+          .filter((target) => existsSync(target));
+        // Record old and new files together before deleting anything, so a failed
+        // cleanup or state write never leaves generated assets untracked.
+        if (stale.length) atomicWrite(statePath, `${JSON.stringify({ files: [...new Set([...previous.files, ...files])].sort() }, null, 2)}\n`);
+        for (const target of stale) removeFile(target, 'stale plugin-owned asset');
+        const removed = stale.length;
         atomicWrite(statePath, `${JSON.stringify({ files }, null, 2)}\n`);
         logDiagnostic('BUILD_OUTPUT_WRITTEN', `assets=${files.length} removed=${removed} snippet=${sourceKey(snippet, options.themeRoot)}`);
       } catch (error) {
@@ -143,6 +146,9 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     buildEnd(error) { if (error && config.command === 'build') cleanup(); },
     closeBundle() { if (config.command === 'build') cleanup(); },
     configureServer(server: ViteDevServer) {
+      if (!server.httpServer && !options.devOrigin) {
+        throw diagnostic('DEV_ORIGIN_UNAVAILABLE', 'The Vite server has no HTTP server (middleware mode), so the development origin cannot be determined. Configure `devOrigin` or run Vite with its own HTTP server.');
+      }
       owner = acquireLock(options.themeRoot, 'development');
       logDiagnostic('OWNERSHIP_ACQUIRED', `mode=development root=${options.themeRoot}`);
       installProcessHandlers();
@@ -150,11 +156,11 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         try {
           const origin = options.devOrigin?.origin ?? localOrigin(server);
           const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet');
-          original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
+          const original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
           const content = developmentSnippet(origin, options.entries, options.themeRoot);
           atomicWrite(snippet, content);
-          developmentHash = sha(content);
-          developmentActive = true;
+          const developmentHash = sha(content);
+          development = { hash: developmentHash, original };
           if (!owner) throw diagnostic('DEV_OWNERSHIP_LOST', `Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
           owner.development = { snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
@@ -169,7 +175,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           throw error;
         }
       };
-      server.httpServer?.once('listening', activate);
+      if (!server.httpServer || server.httpServer.listening) activate(); else server.httpServer.once('listening', activate);
       server.httpServer?.once('close', cleanup);
     },
     closeServer() { cleanup(); },
@@ -181,6 +187,12 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       return [];
     },
   };
+}
+
+function resolveOwnedAsset(themeRoot: string, assetsRoot: string, file: string): string {
+  const target = canonicalPathInside(themeRoot, resolve(assetsRoot, file), `Recorded plugin-owned asset "${file}"`);
+  if (!inside(assetsRoot, target)) throw diagnostic('PATH_OUTSIDE_THEME', `Recorded plugin-owned asset "${file}" resolves outside the assets directory.`);
+  return target;
 }
 
 function localOrigin(server: ViteDevServer): string {
