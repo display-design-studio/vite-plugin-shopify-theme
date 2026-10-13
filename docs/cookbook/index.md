@@ -19,6 +19,7 @@ For the underlying platforms, keep the [Shopify theme architecture guide](https:
 - [Setup checklist](./setup-checklist): new or existing theme to a verified working setup.
 - [Live Theme Editor with a tunnel](./theme-editor-and-tunnels): live assets and HMR inside the Theme Editor.
 - [Fonts, images, and vendor code](./fonts-images-vendors): assets from CSS and node_modules packages.
+- [Critical CSS](./critical-css): inline a small first-paint stylesheet with an entry option.
 - [Page-specific entrypoints](./page-specific-entrypoints): connect `request.page_type` to flat, declared entry names.
 - [Developer experience](./developer-experience): inspect rendered Liquid with the optional DevTools companion.
 - [Quality tooling](./quality-tooling): check Liquid, TypeScript, and JavaScript in the project that owns them.
