@@ -12,9 +12,8 @@ type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
   let config: ResolvedConfig;
-  let original: { exists: boolean; content: string } | undefined;
-  let developmentHash: string | undefined;
-  let developmentActive = false;
+  // Present only while the temporary development snippet is installed.
+  let development: { hash: string; original: { exists: boolean; content: string } } | undefined;
   let exitHandler: (() => void) | undefined;
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
@@ -23,11 +22,11 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
   };
   const restoreDevelopmentSnippet = () => {
-    if (!developmentActive || !existsSync(options.snippet)) return false;
+    if (!development || !existsSync(options.snippet)) return false;
     const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet', true);
-    if (sha(readText(snippet, 'development snippet')) !== developmentHash) return false;
-    if (original?.exists) atomicWrite(snippet, original.content); else removeFile(snippet, 'temporary development snippet');
-    developmentActive = false;
+    if (sha(readText(snippet, 'development snippet')) !== development.hash) return false;
+    if (development.original.exists) atomicWrite(snippet, development.original.content); else removeFile(snippet, 'temporary development snippet');
+    development = undefined;
     logDiagnostic('DEVELOPMENT_RESTORED', `snippet=${sourceKey(options.snippet, options.themeRoot)}`);
     return true;
   };
@@ -155,11 +154,11 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         try {
           const origin = options.devOrigin?.origin ?? localOrigin(server);
           const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet');
-          original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
+          const original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
           const content = developmentSnippet(origin, options.entries, options.themeRoot);
           atomicWrite(snippet, content);
-          developmentHash = sha(content);
-          developmentActive = true;
+          const developmentHash = sha(content);
+          development = { hash: developmentHash, original };
           if (!owner) throw diagnostic('DEV_OWNERSHIP_LOST', `Development ownership for theme root "${options.themeRoot}" was lost before server startup. Stop other Vite processes and retry.`);
           owner.development = { snippet, developmentHash, original };
           updateLock(options.themeRoot, owner);
