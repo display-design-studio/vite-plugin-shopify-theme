@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import type { Manifest } from 'vite';
@@ -33,7 +33,7 @@ export function atomicWrite(path: string, content: string, mode?: number): void 
     mkdirSync(dirname(path), { recursive: true });
     const existingMode = existsSync(path) ? statSync(path).mode & 0o777 : undefined;
     descriptor = openSync(temporary, 'wx', mode ?? existingMode ?? 0o666);
-    writeFileSync(descriptor, content, 'utf8'); closeSync(descriptor); descriptor = undefined;
+    writeFileSync(descriptor, content, 'utf8'); fsyncSync(descriptor); closeSync(descriptor); descriptor = undefined;
     if (existingMode !== undefined) chmodSync(temporary, existingMode);
     renameSync(temporary, path);
   } catch (error) {
