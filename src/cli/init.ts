@@ -27,6 +27,7 @@ export interface InitRuntime {
 
 // Pinned release: `--latest` fails on shallow clones and `main` uses Liquid tags stores may not support yet.
 const skeletonUrl = 'https://github.com/Shopify/skeleton-theme.git#v1.0.0';
+const exampleEnvironment = '[environments.development]\nstore = "your-store.myshopify.com"\n';
 const placeholderSnippet = '{% comment %} Placeholder created by vite-shopify-theme init. It is replaced by `vite build` and `dev`. {% endcomment %}\n';
 const managers = ['npm', 'pnpm', 'yarn', 'bun'] as const;
 
@@ -187,10 +188,13 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   // Placeholder so the layout's render never fails before the first dev/build; both overwrite and later restore it.
   const snippetPath = join(root, 'snippets/vite-tag.liquid');
   if (!existsSync(snippetPath)) writeFileSync(snippetPath, placeholderSnippet);
+  // Template for the Shopify CLI environment that `dev` selects automatically; the local copy stays out of git.
+  const examplePath = join(root, 'example.shopify.theme.toml');
+  if (!existsSync(examplePath)) writeFileSync(examplePath, exampleEnvironment);
   const nextPackage = `${JSON.stringify(nextManifest, null, 2)}\n`;
   if (!existsSync(packagePath) || readFileSync(packagePath, 'utf8') !== nextPackage) writeFileSync(packagePath, nextPackage);
   const gitignorePath = join(root, '.gitignore');
-  writeFileSync(gitignorePath, mergeLines(existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '', ['node_modules/', '.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js']));
+  writeFileSync(gitignorePath, mergeLines(existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '', ['node_modules/', '.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js', 'shopify.theme.toml']));
   const shopifyIgnorePath = join(root, '.shopifyignore');
   writeFileSync(shopifyIgnorePath, mergeLines(existsSync(shopifyIgnorePath) ? readFileSync(shopifyIgnorePath, 'utf8') : '', ['node_modules/*', 'frontend/*', 'vite.config.*', '.vite-shopify-theme.json', '.vite-shopify-theme.lock']));
 
@@ -210,5 +214,6 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   run(command, [...args], root);
   if (layoutInstructions) log(layoutInstructions);
   log(`Configured Shopify theme at ${root}`);
+  if (!existsSync(join(root, 'shopify.theme.toml'))) log('Next: copy example.shopify.theme.toml to shopify.theme.toml and set your store; `dev` then runs `shopify theme dev --environment development`.');
   return { root, cancelled: false, layoutInstructions };
 }

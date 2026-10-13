@@ -6,7 +6,7 @@ import { collectManifestTags, developmentSnippet, normalizeOptions, productionSn
 import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
-import { runDevelopment } from '../src/cli/dev.js';
+import { runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
 import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
 
@@ -42,7 +42,7 @@ describe('setup CLI', () => {
     expect(calls[0][0]).toBe('npm');
     expect(calls[0][1]).toContain('@display-studio/vite-plugin-shopify-theme@0.4.0');
     expect(calls).toHaveLength(1);
-    expect(logs).toEqual([`Configured Shopify theme at ${root}`]);
+    expect(logs).toEqual([`Configured Shopify theme at ${root}`, expect.stringContaining('copy example.shopify.theme.toml to shopify.theme.toml')]);
   });
 
   it('supports JS without Tailwind and preserves an ambiguous layout', async () => {
@@ -95,6 +95,17 @@ describe('setup CLI', () => {
     mkdirSync(join(root, '.git'));
     await initialize({ yes: true, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() });
     expect(existsSync(join(root, '.git'))).toBe(true);
+  });
+
+  it('writes an example Shopify environment, never overwrites it, and ignores the local copy', async () => {
+    const root = theme();
+    writeFileSync(join(root, 'example.shopify.theme.toml'), '[environments.development]\nstore = "mine.myshopify.com"\n');
+    await initialize({ yes: true, directory: root }, { version: '0.5.0', cwd: '/', run: vi.fn() });
+    expect(readFileSync(join(root, 'example.shopify.theme.toml'), 'utf8')).toContain('mine.myshopify.com');
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toMatch(/^shopify\.theme\.toml$/m);
+    const fresh = theme();
+    await initialize({ yes: true, directory: fresh }, { version: '0.5.0', cwd: '/', run: vi.fn() });
+    expect(readFileSync(join(fresh, 'example.shopify.theme.toml'), 'utf8')).toBe('[environments.development]\nstore = "your-store.myshopify.com"\n');
   });
 
   it('is idempotent and merges ignore files without duplicates', async () => {
@@ -178,6 +189,36 @@ describe('development CLI', () => {
     expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
     signals.get('SIGINT')?.();
     expect(result.children.every((child) => child.killed)).toBe(true);
+  });
+
+  it('sends arguments after -- to Shopify and keeps the rest for Vite', async () => {
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    await runDevelopment(['--host', '--', '--theme', '123', '--store', 'x.myshopify.com'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
+    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), '--host']);
+    expect(calls[1][1]).toEqual(['theme', 'dev', '--theme', '123', '--store', 'x.myshopify.com']);
+  });
+
+  it('selects the development environment from shopify.theme.toml unless one is already chosen', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-env-'));
+    expect(shopifyThemeArguments(root, [], {})).toEqual(['theme', 'dev']);
+    writeFileSync(join(root, 'shopify.theme.toml'), '[environments.staging]\nstore = "s"\n');
+    expect(shopifyThemeArguments(root, [], {})).toEqual(['theme', 'dev']);
+    writeFileSync(join(root, 'shopify.theme.toml'), '# local\n[environments.development]\nstore = "d.myshopify.com"\n');
+    expect(shopifyThemeArguments(root, [], {})).toEqual(['theme', 'dev', '--environment', 'development']);
+    expect(shopifyThemeArguments(root, ['--live-reload', 'full-page'], {})).toEqual(['theme', 'dev', '--environment', 'development', '--live-reload', 'full-page']);
+    expect(shopifyThemeArguments(root, ['-e', 'staging'], {})).toEqual(['theme', 'dev', '-e', 'staging']);
+    expect(shopifyThemeArguments(root, ['--environment=staging'], {})).toEqual(['theme', 'dev', '--environment=staging']);
+    expect(shopifyThemeArguments(root, [], { SHOPIFY_FLAG_ENVIRONMENT: 'staging' })).toEqual(['theme', 'dev']);
+  });
+
+  it('quotes Shopify arguments for the Windows shell', async () => {
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    await runDevelopment(['--', '--theme', 'My Theme'], { cwd: root, platform: 'win32', spawn, ready: async () => true, onSignal: vi.fn() }).started;
+    expect(calls[1][0]).toBe('shopify theme dev --theme "My Theme"');
   });
 
   it('uses a shell only for the Windows Shopify shim', async () => {

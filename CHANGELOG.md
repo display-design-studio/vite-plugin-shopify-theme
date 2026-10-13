@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented here.
 
+## Unreleased
+
+### Added
+
+- `vite-shopify-theme dev` now selects the Shopify CLI `development` environment automatically when `shopify.theme.toml` defines `[environments.development]`, and forwards arguments after `--` to `shopify theme dev`.
+- `init` writes `example.shopify.theme.toml` (never overwriting an existing file) and ignores `shopify.theme.toml` in git.
+
 ## 0.5.0
 
 ### Added

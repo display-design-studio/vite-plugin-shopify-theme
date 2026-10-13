@@ -40,6 +40,10 @@ The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. U
 
 `INLINE_CSS_TOO_LARGE` is a warning: Shopify only inlines assets smaller than 15 KB, so the build rendered a normal `<link>` for that entry instead. Shrink the stylesheet or remove `inline` from the entry. See [Critical CSS](./cookbook/critical-css).
 
+## Shopify reports `Upload Errors` such as `cart.json` already exists with the `liquid` extension
+
+This comes from the remote theme, not the plugin: the theme Shopify CLI uploads to already has `templates/cart.liquid`, and a theme cannot hold both `cart.liquid` and `cart.json`. It usually means `dev` targeted a store theme or an old development theme. Define `[environments.development]` in `shopify.theme.toml` so `dev` always uses the same store, delete the old development theme (`shopify theme list`, then `shopify theme delete`), and run `dev` again to create a clean one.
+
 ## Before opening an issue
 
 Include the Node, Vite, plugin, Shopify CLI, operating-system, and package-manager versions; the relevant `entries`, `themeRoot`, `snippet`, and `devOrigin` values; the full coded diagnostic; whether the failure occurs in build or development; and a minimal file tree. Remove store credentials and theme tokens.

@@ -1,6 +1,17 @@
 # 3. Development Modes
 
-`npm run dev` runs installed Vite through Node and `shopify theme dev` in the current directory. Arguments are forwarded to Vite: `npm run dev -- --host 0.0.0.0`. Vite starts first, and Shopify CLI starts only after the plugin has written the development snippet, so the first sync includes `snippets/vite-tag.liquid`. If the snippet is not written within 30 seconds, a warning is printed and Shopify CLI starts anyway.
+`npm run dev` runs installed Vite through Node and `shopify theme dev` in the current directory. Arguments are forwarded to Vite: `npm run dev -- --host 0.0.0.0`. A `--` separator sends everything after it to `shopify theme dev` instead, for example `vite-shopify-theme dev --host 0.0.0.0 -- --theme 123456789` (through a package script, add the separator your package manager needs before the arguments). Vite starts first, and Shopify CLI starts only after the plugin has written the development snippet, so the first sync includes `snippets/vite-tag.liquid`. If the snippet is not written within 30 seconds, a warning is printed and Shopify CLI starts anyway.
+
+## Shopify environment
+
+Create `shopify.theme.toml` in the theme root (keep it out of git; `init` ignores it):
+
+```toml
+[environments.development]
+store = "your-store.myshopify.com"
+```
+
+When this file defines `[environments.development]`, `dev` runs `shopify theme dev --environment development`, so Shopify CLI does not ask for a store each time. `init` writes `example.shopify.theme.toml` as a template: copy it to `shopify.theme.toml` and set your store. Pass `-e <name>` or `--environment <name>` after `--`, or set `SHOPIFY_FLAG_ENVIRONMENT`, to choose another environment; `dev` then adds nothing.
 
 The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals, stops the sibling process when either exits, and propagates failures. On Windows, a shell is used only for the Shopify shim.
 

@@ -20,7 +20,7 @@ This page is for coding agents and for people writing instructions for them. Eve
 3. Render it in Liquid: `{% render 'vite-tag', entry: 'product.ts' %}`.
 4. Run `npm run build` and confirm the snippet has a `{% when 'product.ts' %}` block.
 
-**Start development**: `npm run dev` runs Vite first and Shopify CLI after the development snippet exists. Prefer it over starting `shopify theme dev` separately, so the first sync includes the snippet.
+**Start development**: `npm run dev` runs Vite first and Shopify CLI after the development snippet exists. Prefer it over starting `shopify theme dev` separately, so the first sync includes the snippet. Store settings live in `shopify.theme.toml` (`[environments.development]`); `dev` selects that environment automatically, and options after `--` go to Shopify CLI.
 
 **Production assets**: `npm run build`, then upload the theme with Shopify CLI.
 

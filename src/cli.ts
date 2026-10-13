@@ -5,7 +5,7 @@ import { initialize, type InitOptions, type Language, type PackageManager } from
 import { runDevelopment } from './cli/dev.js';
 
 function usage() {
-  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options]\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --yes\n`;
+  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options] [-- shopify theme dev options]\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --yes\n`;
 }
 
 export function parseInitArguments(arguments_: string[]): InitOptions {
