@@ -2,17 +2,23 @@
 
 All notable changes to this package are documented here.
 
-## 0.4.1
+## 0.5.0
+
+### Added
+
+- Entries now accept an object form, `{ source, attributes?, inline? }`, alongside the string form. `attributes` adds sorted, HTML-escaped attributes to the entry's `<script>` and stylesheet `<link>` tags. `inline: true` renders a stylesheet entry with Shopify's `inline_asset_content` filter in production. Invalid options fail at configuration time with `CONFIG_ENTRIES`. The `EntryOptions` type is exported.
+- Added the `INLINE_CSS_TOO_LARGE` warning: an inline stylesheet of 15,000 bytes or more falls back to a `<link>` tag instead of failing the build, because Shopify only inlines files under 15 KB.
+- Added the `SNIPPET_SIZE_NEAR_LIMIT` warning when a generated snippet reaches 75% of Shopify's 256 kB limit.
+- Added `DEV_ORIGIN_UNAVAILABLE` for development servers without an HTTP server or already listening, such as middleware mode.
+- Documented the setup checklist, Theme Editor with a tunnel, fonts, images and vendors, page-specific stylesheets, critical CSS, and agent instructions with a copyable `AGENTS.md`.
+- Added RFC 0002 for tag attributes and inline CSS.
 
 ### Fixed
 
-- Fixed `init` failing to create a new theme because `shopify theme init --latest` cannot clone releases shallowly; new themes now clone the pinned Skeleton `v1.0.0` release.
-- Fixed `init` generating a `package.json` without `"type": "module"`, which made Vite fail to load the ESM-only plugin from `vite.config`.
-- Fixed `init` writing `.shopifyignore` directory patterns (`node_modules/`, `frontend/`) that Shopify CLI warns about; it now writes `node_modules/*` and `frontend/*`.
-
-### Changed
-
-- `init` language and package manager prompts are now selectable with the arrow keys in interactive terminals.
+- Fixed the development server answering every origin with the tunnel origin when `devOrigin` is set. It now allows localhost, the tunnel origin, `https://*.myshopify.com`, and `https://*.shopify.com`.
+- Fixed lock reclaim so it re-reads the owner token before removing a stale lock, and treats a lock owned by another host as live.
+- Stale asset cleanup now records the union of old and new assets before deleting, and atomic writes flush to disk before renaming.
+- Failure to read the theme root now reports `CONFIG_THEME_ROOT`, and a missing manifest entry uses one shared diagnostic.
 
 ## 0.4.2
 
@@ -26,7 +32,19 @@ All notable changes to this package are documented here.
 
 - `init` no longer installs Shopify AI Toolkit skills; they are documented in the cookbook. `--no-skills` is accepted and ignored, and `--skills` was removed.
 
-## Unreleased
+## 0.4.1
+
+### Fixed
+
+- Fixed `init` failing to create a new theme because `shopify theme init --latest` cannot clone releases shallowly; new themes now clone the pinned Skeleton `v1.0.0` release.
+- Fixed `init` generating a `package.json` without `"type": "module"`, which made Vite fail to load the ESM-only plugin from `vite.config`.
+- Fixed `init` writing `.shopifyignore` directory patterns (`node_modules/`, `frontend/`) that Shopify CLI warns about; it now writes `node_modules/*` and `frontend/*`.
+
+### Changed
+
+- `init` language and package manager prompts are now selectable with the arrow keys in interactive terminals.
+
+## 0.4.0
 
 ### Added
 
@@ -34,7 +52,6 @@ All notable changes to this package are documented here.
 - Added `vite-shopify-theme dev` to coordinate installed Vite and Shopify CLI processes.
 - Added a VitePress documentation site and GitHub Pages deployment workflow.
 - Accepted the scoped 0.4.0 CLI RFC; tunnel management and deployment remain out of scope.
-
 - Added stable, searchable diagnostic codes to every plugin-authored error and warning, with a documented code reference for troubleshooting.
 - Added opt-in `diagnostics` lifecycle logging through Vite's logger, including stable events for configuration, ownership, build output, development restoration, and hot reloads.
 - Added early `THEME_STRUCTURE_INVALID` diagnostics for missing or non-directory Shopify assets and configured snippet directories.
