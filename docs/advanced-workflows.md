@@ -37,4 +37,4 @@ Theme App Extensions have their own Shopify build and deployment lifecycle. Use 
 
 ## External tunnels
 
-Create the tunnel with the provider of your choice, route it to Vite, and set `devOrigin` to its public HTTPS origin. The plugin configures browser-facing HMR URLs and allowed hosts; it does not create, authenticate, or stop the tunnel.
+Create the tunnel with the provider of your choice, route it to Vite, and set `devOrigin` to its public HTTPS origin. The plugin configures browser-facing HMR URLs and allowed hosts; it does not create, authenticate, or stop the tunnel. Development CORS responses allow `localhost`, the tunnel origin, and HTTPS `*.myshopify.com` and `*.shopify.com` pages; see the [live editor recipe](./cookbook/theme-editor-and-tunnels).
