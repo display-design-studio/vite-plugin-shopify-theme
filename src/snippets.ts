@@ -34,6 +34,13 @@ export function snippetSizeWarning(content: string, name: string): string | unde
   return formatDiagnostic('SNIPPET_SIZE_NEAR_LIMIT', `Generated snippet "${name}" is ${bytes} bytes; Shopify rejects theme files over ${SNIPPET_SIZE_LIMIT} bytes (256 kB). Reduce the number of entries or chunks, or disable \`build.modulePreload\`.`);
 }
 
+// Shopify's inline_asset_content only inlines assets smaller than 15 KB; stay under it in decimal bytes.
+export const INLINE_ASSET_LIMIT = 15_000;
+
+export function inlineSizeWarning(entry: string, file: string, bytes: number): string {
+  return formatDiagnostic('INLINE_CSS_TOO_LARGE', `Entry "${entry}" is configured with inline, but its stylesheet "${file}" is ${bytes} bytes and Shopify only inlines assets smaller than 15 KB. A normal stylesheet link was rendered instead. Reduce the stylesheet or remove inline.`);
+}
+
 export function sourceKey(path: string, root: string): string { return relative(root, path).split(sep).join('/'); }
 
 export interface ManifestTags { preloads: string[]; styles: string[]; scripts: string[] }
@@ -106,7 +113,7 @@ interface ProductionRendering {
   aggregateCss?: string;
   entryOptions?: Record<string, NormalizedEntryOptions>;
   /** Whether a built stylesheet may be rendered inline. Defaults to true. */
-  canInline?: (file: string) => boolean;
+  canInline?: (file: string, entry: string) => boolean;
 }
 
 export function renderProductionSnippet(manifest: Manifest, entries: Record<string, string>, root: string, rendering: ProductionRendering): string {
@@ -119,7 +126,7 @@ export function renderProductionSnippet(manifest: Manifest, entries: Record<stri
     const entry = rendering.entryOptions?.[name];
     const attributes = renderAttributes(entry?.attributes);
     const inline = entry?.inline === true && !rendering.aggregateCss;
-    const stylesheet = (f: string) => inline && (rendering.canInline?.(f) ?? true)
+    const stylesheet = (f: string) => inline && (rendering.canInline?.(f, name) ?? true)
       ? `<style>{{ '${f.replaceAll("'", "\\'")}' | inline_asset_content }}</style>`
       : `<link rel="stylesheet" href="${asset(f)}"${attributes}>`;
     const lines = [...styles.map(stylesheet), ...tags.scripts.filter((f) => f.endsWith('.js')).map((f) => `<script type="module" src="${asset(f)}"${attributes}></script>`), ...preloads.map((f) => `<link rel="modulepreload" href="${asset(f)}">`)];
