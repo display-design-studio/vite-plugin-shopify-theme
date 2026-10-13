@@ -522,3 +522,29 @@ describe('entry options in builds', () => {
     expect(recorded.some((file) => /^theme-.*\.css$/.test(file) && existsSync(join(root, 'assets', file)))).toBe(true);
   });
 });
+
+describe('inline stylesheet size limit', () => {
+  const logger = () => {
+    const warn = vi.fn();
+    return { warn, customLogger: { info: vi.fn(), warn, warnOnce: warn, error: vi.fn(), clearScreen: vi.fn(), hasErrorLogged: () => false, hasWarned: false } };
+  };
+
+  it('warns and renders a link when an inline stylesheet is 15 KB or larger', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'frontend/theme.css'), Array.from({ length: 800 }, (_, index) => `.rule-${index} { color: #${String(100000 + index)} }`).join('\n'));
+    const { warn, customLogger } = logger();
+    await build({ configFile: false, root, customLogger, plugins: [shopifyTheme({ themeRoot: root, entries: { 'theme.css': { source: 'frontend/theme.css', inline: true } } })] });
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet).toMatch(/<link rel="stylesheet" href="\{\{ 'theme-[^']+\.css' \| asset_url \}\}">/);
+    expect(snippet).not.toContain('inline_asset_content');
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[shopify-theme:INLINE_CSS_TOO_LARGE\].*"theme\.css".*smaller than 15 KB/));
+  });
+
+  it('inlines without warning when the stylesheet is small', async () => {
+    const root = fixture();
+    const { warn, customLogger } = logger();
+    await build({ configFile: false, root, customLogger, plugins: [shopifyTheme({ themeRoot: root, entries: { 'theme.css': { source: 'frontend/theme.css', inline: true } } })] });
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain('inline_asset_content');
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('INLINE_CSS_TOO_LARGE'));
+  });
+});

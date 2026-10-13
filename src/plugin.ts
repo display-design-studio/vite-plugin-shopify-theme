@@ -5,7 +5,7 @@ import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, error
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
-import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, RESOLVED_HOT_RELOAD_CLIENT, snippetSizeWarning, sourceKey } from './snippets.js';
+import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, INLINE_ASSET_LIMIT, inlineSizeWarning, RESOLVED_HOT_RELOAD_CLIENT, snippetSizeWarning, sourceKey } from './snippets.js';
 
 type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT_ACTIVATED' | 'DEVELOPMENT_RESTORED' | 'HOT_RELOAD' | 'OWNERSHIP_ACQUIRED' | 'OWNERSHIP_RELEASED';
 
@@ -108,11 +108,21 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         }
         const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Generated Liquid snippet');
         const originalSnippet = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
+        const oversized: string[] = [];
+        const canInline = (file: string, entry: string) => {
+          const output = bundle[file];
+          const bytes = output?.type === 'asset' ? Buffer.byteLength(output.source) : 0;
+          if (bytes < INLINE_ASSET_LIMIT) return true;
+          oversized.push(inlineSizeWarning(entry, file, bytes));
+          return false;
+        };
         const generatedSnippet = renderProductionSnippet(manifest, options.entries, options.themeRoot, {
           modulePreload: config.build.modulePreload !== false,
           aggregateCss,
           entryOptions: options.entryOptions,
+          canInline,
         });
+        for (const warning of oversized) config.logger.warn(warning);
         const sizeWarning = snippetSizeWarning(generatedSnippet, sourceKey(snippet, options.themeRoot));
         if (sizeWarning) config.logger.warn(sizeWarning);
         atomicWrite(snippet, generatedSnippet);
