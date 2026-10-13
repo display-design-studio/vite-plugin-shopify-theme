@@ -104,6 +104,7 @@ export function acquireLock(root: string, mode: LockOwner['mode']): LockOwner {
       const current = readOwner(root);
       if (current && processIsAlive(current.pid)) throw diagnostic('LOCK_ACTIVE', `Cannot start ${mode}: ${current.mode} process ${current.pid} has owned ${root} since ${current.startedAt}. Stop it before trying again.`);
       if (current) recoverDevelopment(root, current);
+      if (readOwner(root)?.token !== current?.token) continue;
       const stalePath = `${lockPath(root)}.stale.${owner.token}`;
       try { renameSync(lockPath(root), stalePath); rmSync(stalePath, { recursive: true }); } catch (removeError) {
         if ((removeError as NodeJS.ErrnoException).code === 'ENOENT') continue;

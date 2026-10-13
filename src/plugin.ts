@@ -141,6 +141,9 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     buildEnd(error) { if (error && config.command === 'build') cleanup(); },
     closeBundle() { if (config.command === 'build') cleanup(); },
     configureServer(server: ViteDevServer) {
+      if (!server.httpServer && !options.devOrigin) {
+        throw diagnostic('DEV_ORIGIN_UNAVAILABLE', 'The Vite server has no HTTP server (middleware mode), so the development origin cannot be determined. Configure `devOrigin` or run Vite with its own HTTP server.');
+      }
       owner = acquireLock(options.themeRoot, 'development');
       logDiagnostic('OWNERSHIP_ACQUIRED', `mode=development root=${options.themeRoot}`);
       installProcessHandlers();
@@ -167,7 +170,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           throw error;
         }
       };
-      server.httpServer?.once('listening', activate);
+      if (!server.httpServer || server.httpServer.listening) activate(); else server.httpServer.once('listening', activate);
       server.httpServer?.once('close', cleanup);
     },
     closeServer() { cleanup(); },

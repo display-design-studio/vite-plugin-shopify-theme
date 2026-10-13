@@ -402,3 +402,30 @@ function writeStaleLock(root: string, temporary: string, original: string, token
     },
   }));
 }
+
+describe('development server without a listening phase', () => {
+  const middlewareServer = (root: string, devOrigin?: string) => {
+    const plugin = shopifyTheme({ entries, themeRoot: root, devOrigin }) as any;
+    const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
+    plugin.configResolved({ command: 'serve', logger: { info: vi.fn(), warn: vi.fn() } });
+    return { plugin, server: { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer: null } };
+  };
+
+  it('fails before taking ownership when the origin cannot be determined', () => {
+    const root = fixture();
+    const { plugin, server } = middlewareServer(root);
+    expect(() => plugin.configureServer(server)).toThrow(/\[shopify-theme:DEV_ORIGIN_UNAVAILABLE\].*middleware mode/);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('activates immediately with an explicit devOrigin and restores on closeServer', () => {
+    const root = fixture();
+    const original = readFileSync(snippetPath(root), 'utf8');
+    const { plugin, server } = middlewareServer(root, 'https://vite.example.test');
+    plugin.configureServer(server);
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain('https://vite.example.test/@vite/client');
+    plugin.closeServer();
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+});
