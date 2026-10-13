@@ -465,3 +465,27 @@ describe('lock host awareness', () => {
     active.httpServer.emit('close');
   });
 });
+
+describe('build output variety', () => {
+  it('records dynamic chunks, fonts, images, and source maps without preloading them', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'frontend/lazy.ts'), "export const lazy = 'lazy';");
+    writeFileSync(join(root, 'frontend/dyn.ts'), "import('./lazy.ts').then((m) => console.log(m.lazy));");
+    writeFileSync(join(root, 'frontend/font.woff2'), 'font-bytes');
+    writeFileSync(join(root, 'frontend/pic.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400"/></svg>');
+    writeFileSync(join(root, 'frontend/media.css'), "@font-face { font-family: X; src: url('./font.woff2') }\n.pic { background: url('./pic.svg') }");
+    await build({
+      configFile: false, root, logLevel: 'silent',
+      build: { sourcemap: true, assetsInlineLimit: 0 },
+      plugins: [shopifyTheme({ themeRoot: root, entries: { 'dyn.ts': 'frontend/dyn.ts', 'media.css': 'frontend/media.css' } })],
+    });
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    for (const pattern of [/^dyn\.ts-.*\.js$/, /^lazy.*\.js$/, /\.woff2$/, /\.svg$/, /\.js\.map$/]) {
+      expect(recorded.some((file) => pattern.test(file)), String(pattern)).toBe(true);
+    }
+    expect(recorded.every((file) => !file.includes('/') && existsSync(join(root, 'assets', file)))).toBe(true);
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet).toMatch(/\{% when 'media\.css' %\}\n<link rel="stylesheet" href="\{\{ 'media-[^']+\.css' \| asset_url \}\}">/);
+    expect(snippet).not.toMatch(/lazy|\.woff2|\.svg|\.map/);
+  });
+});
