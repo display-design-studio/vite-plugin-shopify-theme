@@ -56,6 +56,8 @@ export default defineConfig({
 });
 ```
 
+An entry can also be an object (`{ source, attributes, inline }`) to add validated tag attributes or inline a small critical stylesheet; see the configuration guide.
+
 Every entry remains explicit. Generated output is deterministic, stale cleanup is restricted to recorded plugin-owned assets, and manual theme files are preserved.
 
 Read [why this plugin exists](https://display-design-studio.github.io/vite-plugin-shopify-theme/why-this-plugin) and the complete [documentation](https://display-design-studio.github.io/vite-plugin-shopify-theme/) for CLI flags, development modes, configuration, frameworks, advanced workflows, API, and troubleshooting.

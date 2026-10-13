@@ -25,6 +25,7 @@ export default defineConfig({
         { text: 'Setup checklist', link: '/cookbook/setup-checklist' },
         { text: 'Live Theme Editor with a tunnel', link: '/cookbook/theme-editor-and-tunnels' },
         { text: 'Fonts, images, and vendor code', link: '/cookbook/fonts-images-vendors' },
+        { text: 'Critical CSS', link: '/cookbook/critical-css' },
         { text: 'Page-specific entrypoints', link: '/cookbook/page-specific-entrypoints' },
         { text: 'Developer experience', link: '/cookbook/developer-experience' },
         { text: 'Quality tooling', link: '/cookbook/quality-tooling' },
