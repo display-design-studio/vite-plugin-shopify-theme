@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { build } from 'vite';
+import { build, createServer } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initialize } from '../src/cli/init.js';
 import { shopifyTheme } from '../src/index.js';
@@ -405,6 +405,21 @@ function writeStaleLock(root: string, temporary: string, original: string, token
     },
   }));
 }
+
+describe('external origin CORS', () => {
+  it('answers Shopify page origins, not only the tunnel origin', async () => {
+    const root = fixture();
+    const server = await createServer({ configFile: false, root, logLevel: 'silent', server: { port: 0 }, plugins: [shopifyTheme({ entries, themeRoot: root, devOrigin: 'https://vite.example.test' })] });
+    try {
+      await server.listen();
+      const address = server.httpServer!.address() as { port: number };
+      const allowOrigin = async (origin: string) => (await fetch(`http://localhost:${address.port}/frontend/theme.css`, { headers: { Origin: origin, Host: 'vite.example.test' } })).headers.get('access-control-allow-origin');
+      expect(await allowOrigin('https://shop.myshopify.com')).toBe('https://shop.myshopify.com');
+      expect(await allowOrigin('https://admin.shopify.com')).toBe('https://admin.shopify.com');
+      expect(await allowOrigin('https://evil.example')).toBeNull();
+    } finally { await server.close(); }
+  });
+});
 
 describe('development server without a listening phase', () => {
   const middlewareServer = (root: string, devOrigin?: string) => {
