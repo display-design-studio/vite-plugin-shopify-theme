@@ -504,3 +504,21 @@ describe('build output variety', () => {
     expect(snippet).not.toMatch(/lazy|\.woff2|\.svg|\.map/);
   });
 });
+
+describe('entry options in builds', () => {
+  it('renders attributes and inline stylesheets and keeps inlined assets recorded', async () => {
+    const root = fixture();
+    await build({
+      configFile: false, root, logLevel: 'silent',
+      plugins: [shopifyTheme({ themeRoot: root, entries: {
+        'theme.css': { source: 'frontend/theme.css', inline: true },
+        'theme.ts': { source: 'frontend/theme.ts', attributes: { fetchpriority: 'high', 'data-bundle': true } },
+      } })],
+    });
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet).toMatch(/\{% when 'theme\.css' %\}\n<style>\{\{ 'theme-[^']+\.css' \| inline_asset_content \}\}<\/style>/);
+    expect(snippet).toMatch(/<script type="module" src="\{\{ 'theme\.ts-[^']+\.js' \| asset_url \}\}" data-bundle fetchpriority="high"><\/script>/);
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    expect(recorded.some((file) => /^theme-.*\.css$/.test(file) && existsSync(join(root, 'assets', file)))).toBe(true);
+  });
+});
