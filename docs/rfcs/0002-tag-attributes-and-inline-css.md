@@ -1,6 +1,6 @@
 # RFC 0002: Controlled tag attributes and inline CSS
 
-- Status: draft
+- Status: accepted for implementation
 - Target: 0.5.0 (earliest)
 
 Let an entry declare a small, validated set of HTML attributes for its generated tags, and let a stylesheet entry be inlined into the page instead of linked. The root exports, zero runtime dependencies, explicit entries, and deterministic output do not change.
@@ -84,9 +84,17 @@ Purely additive. String entries behave exactly as before. The diagnostics add no
 - Integration: a build with an inlined stylesheet records the asset, writes the filter call, and keeps ownership state correct across rebuilds.
 - Canonical verification: `npm run check`; compatibility matrices because the public option shape changes.
 
-## Open questions
+## Decisions
 
-1. Should an oversized inline stylesheet fail the build (proposed) or fall back to a normal `<link>` with a warning?
-2. Should `attributes` also be accepted globally (one map for all entries)?
-3. Is `crossorigin` worth allowing with a validated value, or should it stay plugin-owned?
-4. Should URL-only output (no tag) be part of this RFC or the per-entry snippet RFC?
+1. **Oversized inline stylesheet fails the build.** An explicit option that silently degrades would make production differ from configuration. The diagnostic names the entry and its size; the fix is to shrink the stylesheet or remove `inline`.
+2. **Attributes are per entry only.** There is no global attribute map. Every tag's attributes stay visible next to the entry that owns them, which keeps configuration reviewable and avoids hidden inheritance.
+3. **`crossorigin` stays plugin-owned.** The plugin already decides it for development tags, and a user override is a common source of CORS bugs. Revisit only with a concrete use case.
+4. **URL-only output is out of scope.** It changes what a snippet is for and belongs to the per-entry snippet proposal, tracked separately in the roadmap.
+
+## Implementation order
+
+1. Option types and normalization with validation (`src/config.ts`), including rejection of reserved names, Liquid delimiters, and `inline` on non-stylesheet entries.
+2. Rendering in `src/snippets.ts` for production and development tags.
+3. Inline size check at build time in `src/plugin.ts`.
+4. Documentation: README option table, `docs/configuration.md`, `docs/public-api.md`, a cookbook recipe for critical CSS, and the pack-check expectations if types are exported.
+5. Compatibility matrices before release, because the public option shape changes.
