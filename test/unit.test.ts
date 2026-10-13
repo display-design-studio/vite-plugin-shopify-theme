@@ -501,10 +501,14 @@ describe('Vite 8 configuration', () => {
     expect(contribution).toMatchObject({ publicDir: false, input: { app: join(root, 'frontend/theme.ts') } });
     expect(contribution.build.rolldownOptions.input).toEqual({ app: join(root, 'frontend/theme.ts') });
     expect(contribution.server).toMatchObject({
-      cors: { origin: 'https://vite.example.test' }, allowedHosts: ['vite.example.test'],
+      allowedHosts: ['vite.example.test'],
       ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },
     });
     expect(contribution.server.hmr).toBeUndefined();
+    const origins = contribution.server.cors.origin as Array<string | RegExp>;
+    const allowed = (origin: string) => origins.some((rule) => typeof rule === 'string' ? rule === origin : rule.test(origin));
+    for (const origin of ['https://vite.example.test', 'https://shop.myshopify.com', 'https://admin.shopify.com', 'http://127.0.0.1:9292', 'http://localhost:9292']) expect(allowed(origin), origin).toBe(true);
+    for (const origin of ['https://evil.example', 'https://myshopify.com.evil.example', 'http://shop.myshopify.com', 'https://notshopify.com']) expect(allowed(origin), origin).toBe(false);
   });
 
   it('replaces direct stylesheet inputs with one virtual input only when CSS splitting is disabled', () => {
