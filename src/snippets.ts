@@ -27,6 +27,12 @@ export function sourceKey(path: string, root: string): string { return relative(
 
 export interface ManifestTags { preloads: string[]; styles: string[]; scripts: string[] }
 
+function entryChunk(manifest: Manifest, key: string): ManifestChunk {
+  const chunk = manifest[key];
+  if (!chunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+  return chunk;
+}
+
 export function collectManifestTags(manifest: Manifest, entrySources: string[]): ManifestTags {
   const preloads: string[] = []; const styles: string[] = []; const scripts: string[] = [];
   const seenImports = new Set<string>(); const seenCss = new Set<string>(); const seenScripts = new Set<string>();
@@ -35,8 +41,7 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
     for (const css of chunk.css ?? []) if (!seenCss.has(css)) { seenCss.add(css); styles.push(css); }
   };
   const visitImports = (key: string): void => {
-    const rootChunk = manifest[key];
-    if (!rootChunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+    const rootChunk = entryChunk(manifest, key);
     const stack: Array<{ key: string; chunk: ManifestChunk; index: number; imported?: ManifestChunk }> = [
       { key, chunk: rootChunk, index: 0 },
     ];
@@ -60,8 +65,7 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
     }
   };
   for (const source of entrySources) {
-    const chunk = manifest[source];
-    if (!chunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${source}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+    const chunk = entryChunk(manifest, source);
     addStyles(chunk); visitImports(source);
     if (!seenScripts.has(chunk.file)) { seenScripts.add(chunk.file); scripts.push(chunk.file); }
   }

@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { initialize } from '../src/cli/init.js';
 import { shopifyTheme } from '../src/index.js';
 
 const roots: string[] = [];
@@ -259,13 +260,15 @@ describe('isolated builds', () => {
     expect(existsSync(lockPath(root))).toBe(false);
   });
 
-  it('reports stale asset cleanup failures without committing new ownership state', async () => {
+  it('keeps stale and new assets recorded when stale asset cleanup fails', async () => {
     const root = fixture();
     mkdirSync(join(root, 'assets/stale.js'));
-    const state = `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`;
-    writeFileSync(statePath(root), state);
+    writeFileSync(statePath(root), `${JSON.stringify({ files: ['stale.js'] }, null, 2)}\n`);
     await expect(buildTheme(root)).rejects.toThrow(/remove stale plugin-owned asset.*stale\.js.*ownership and permissions/i);
-    expect(readFileSync(statePath(root), 'utf8')).toBe(state);
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    expect(recorded).toContain('stale.js');
+    expect(recorded.filter((file) => file !== 'stale.js').length).toBeGreaterThan(0);
+    expect(recorded.every((file) => file === 'stale.js' || existsSync(join(root, 'assets', file)))).toBe(true);
     expect(readFileSync(snippetPath(root), 'utf8')).toBe('original production snippet\n');
     expect(statSync(join(root, 'assets/stale.js')).isDirectory()).toBe(true);
     expect(existsSync(lockPath(root))).toBe(false);
@@ -392,13 +395,97 @@ describe('development ownership and recovery', () => {
   });
 });
 
-function writeStaleLock(root: string, temporary: string, original: string, token: string) {
+function writeStaleLock(root: string, temporary: string, original: string, token: string, host?: string) {
   mkdirSync(lockPath(root));
   writeFileSync(join(lockPath(root), 'owner.json'), JSON.stringify({
-    token, pid: 999_999_999, mode: 'development', startedAt: '2020-01-01T00:00:00.000Z',
+    token, pid: 999_999_999, ...(host ? { host } : {}), mode: 'development', startedAt: '2020-01-01T00:00:00.000Z',
     development: {
       snippet: snippetPath(root), developmentHash: createHash('sha256').update(temporary).digest('hex'),
       original: { exists: true, content: original },
     },
   }));
 }
+
+describe('development server without a listening phase', () => {
+  const middlewareServer = (root: string, devOrigin?: string) => {
+    const plugin = shopifyTheme({ entries, themeRoot: root, devOrigin }) as any;
+    const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
+    plugin.configResolved({ command: 'serve', logger: { info: vi.fn(), warn: vi.fn() } });
+    return { plugin, server: { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer: null } };
+  };
+
+  it('fails before taking ownership when the origin cannot be determined', () => {
+    const root = fixture();
+    const { plugin, server } = middlewareServer(root);
+    expect(() => plugin.configureServer(server)).toThrow(/\[shopify-theme:DEV_ORIGIN_UNAVAILABLE\].*middleware mode/);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('activates immediately with an explicit devOrigin and restores on closeServer', () => {
+    const root = fixture();
+    const original = readFileSync(snippetPath(root), 'utf8');
+    const { plugin, server } = middlewareServer(root, 'https://vite.example.test');
+    plugin.configureServer(server);
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain('https://vite.example.test/@vite/client');
+    plugin.closeServer();
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+});
+
+describe('init followed by build', () => {
+  it('produces a theme that builds and replaces the placeholder snippet', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-init-build-'));
+    roots.push(root);
+    for (const directory of ['assets', 'layout', 'snippets']) mkdirSync(join(root, directory));
+    writeFileSync(join(root, 'layout/theme.liquid'), '<html><head></head><body>{{ content_for_layout }}</body></html>\n');
+    await initialize({ yes: true, directory: root, language: 'js', tailwind: false, packageManager: 'npm' }, { version: '0.0.0', cwd: '/', run: vi.fn(), log: vi.fn() });
+    const themeRoot = realpathSync.native(root);
+    expect(readFileSync(snippetPath(themeRoot), 'utf8')).toContain('Placeholder created by vite-shopify-theme init');
+    await build({ configFile: false, root: themeRoot, logLevel: 'silent', plugins: [shopifyTheme({ themeRoot, entries: { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.js': 'frontend/entrypoints/theme.js' } })] });
+    const snippet = readFileSync(snippetPath(themeRoot), 'utf8');
+    expect(snippet).toContain("{% when 'theme.js' %}");
+    expect(snippet).not.toContain('Placeholder');
+    expect(existsSync(lockPath(themeRoot))).toBe(false);
+  });
+});
+
+describe('lock host awareness', () => {
+  it('fails safely on a lock whose owner runs on another host', () => {
+    const root = fixture();
+    writeStaleLock(root, 'temporary\n', 'original\n', 'remote-token', 'another-host.invalid');
+    expect(() => devServer(root)).toThrow(/\[shopify-theme:LOCK_ACTIVE\]/);
+    expect(existsSync(lockPath(root))).toBe(true);
+  });
+
+  it('records the host in new lock metadata', () => {
+    const root = fixture();
+    const active = devServer(root);
+    expect(JSON.parse(readFileSync(join(lockPath(root), 'owner.json'), 'utf8')).host).toBe(hostname());
+    active.httpServer.emit('close');
+  });
+});
+
+describe('build output variety', () => {
+  it('records dynamic chunks, fonts, images, and source maps without preloading them', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'frontend/lazy.ts'), "export const lazy = 'lazy';");
+    writeFileSync(join(root, 'frontend/dyn.ts'), "import('./lazy.ts').then((m) => console.log(m.lazy));");
+    writeFileSync(join(root, 'frontend/font.woff2'), 'font-bytes');
+    writeFileSync(join(root, 'frontend/pic.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400"/></svg>');
+    writeFileSync(join(root, 'frontend/media.css'), "@font-face { font-family: X; src: url('./font.woff2') }\n.pic { background: url('./pic.svg') }");
+    await build({
+      configFile: false, root, logLevel: 'silent',
+      build: { sourcemap: true, assetsInlineLimit: 0 },
+      plugins: [shopifyTheme({ themeRoot: root, entries: { 'dyn.ts': 'frontend/dyn.ts', 'media.css': 'frontend/media.css' } })],
+    });
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    for (const pattern of [/^dyn\.ts-.*\.js$/, /^lazy.*\.js$/, /\.woff2$/, /\.svg$/, /\.js\.map$/]) {
+      expect(recorded.some((file) => pattern.test(file)), String(pattern)).toBe(true);
+    }
+    expect(recorded.every((file) => !file.includes('/') && existsSync(join(root, 'assets', file)))).toBe(true);
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(snippet).toMatch(/\{% when 'media\.css' %\}\n<link rel="stylesheet" href="\{\{ 'media-[^']+\.css' \| asset_url \}\}">/);
+    expect(snippet).not.toMatch(/lazy|\.woff2|\.svg|\.map/);
+  });
+});
