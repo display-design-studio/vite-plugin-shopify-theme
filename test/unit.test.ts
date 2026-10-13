@@ -3,8 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { collectManifestTags, developmentSnippet, normalizeOptions, productionSnippet, shopifyTheme } from '../src/index.js';
-import { renderProductionSnippet } from '../src/snippets.js';
-import { SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
+import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { runDevelopment } from '../src/cli/dev.js';
@@ -615,5 +614,62 @@ describe('snippet size warning', () => {
     expect(snippetSizeWarning('x'.repeat(1000), 'snippets/vite-tag.liquid')).toBeUndefined();
     const warning = snippetSizeWarning('x'.repeat(SNIPPET_SIZE_LIMIT - 1000), 'snippets/vite-tag.liquid');
     expect(warning).toMatch(/^\[shopify-theme:SNIPPET_SIZE_NEAR_LIMIT\].*snippets\/vite-tag\.liquid.*262144/);
+  });
+});
+
+describe('entry options rendering', () => {
+  const root = '/theme';
+  const manifest: Manifest = {
+    'frontend/theme.css': { file: 'theme-a.css', isEntry: true },
+    'frontend/theme.ts': { file: 'theme-b.js', isEntry: true, css: ['theme-b.css'], imports: ['shared'] },
+    shared: { file: 'shared-c.js' },
+  };
+  const entries = { 'theme.css': `${root}/frontend/theme.css`, 'theme.ts': `${root}/frontend/theme.ts` };
+  const attributes: Record<string, string | true> = { media: 'print', 'data-z': true, 'data-a': 'a"<&>' };
+
+  it('renders sorted, escaped attributes on production links and scripts but not on preloads', () => {
+    const snippet = renderProductionSnippet(manifest, entries, root, { modulePreload: true, entryOptions: { 'theme.ts': { attributes, inline: false } } });
+    const attrs = ' data-a="a&quot;&lt;&amp;&gt;" data-z media="print"';
+    expect(snippet).toContain(`<link rel="stylesheet" href="{{ 'theme-b.css' | asset_url }}"${attrs}>`);
+    expect(snippet).toContain(`<script type="module" src="{{ 'theme-b.js' | asset_url }}"${attrs}></script>`);
+    expect(snippet).toContain(`<link rel="modulepreload" href="{{ 'shared-c.js' | asset_url }}">`);
+    expect(snippet).toContain(`<link rel="stylesheet" href="{{ 'theme-a.css' | asset_url }}">`);
+  });
+
+  it('renders identical output regardless of attribute declaration order', () => {
+    const forward = { a: 'x', b: 'y' };
+    const reversed = { b: 'y', a: 'x' };
+    const render = (value: Record<string, string>) => renderProductionSnippet(manifest, entries, root, { modulePreload: true, entryOptions: { 'theme.ts': { attributes: value, inline: false } } });
+    expect(render(forward)).toBe(render(reversed));
+  });
+
+  it('inlines a stylesheet entry with inline_asset_content', () => {
+    const snippet = renderProductionSnippet(manifest, entries, root, { modulePreload: true, entryOptions: { 'theme.css': { attributes: {}, inline: true } } });
+    expect(snippet).toContain("{% when 'theme.css' %}\n<style>{{ 'theme-a.css' | inline_asset_content }}</style>");
+    expect(snippet).not.toContain("{{ 'theme-a.css' | asset_url }}");
+  });
+
+  it('falls back to a link when the stylesheet cannot be inlined', () => {
+    const snippet = renderProductionSnippet(manifest, entries, root, { modulePreload: true, canInline: () => false, entryOptions: { 'theme.css': { attributes: { media: 'all' }, inline: true } } });
+    expect(snippet).toContain(`<link rel="stylesheet" href="{{ 'theme-a.css' | asset_url }}" media="all">`);
+    expect(snippet).not.toContain('inline_asset_content');
+  });
+
+  it('keeps links for inline entries when stylesheets are aggregated', () => {
+    const snippet = renderProductionSnippet(manifest, entries, root, { modulePreload: true, aggregateCss: 'style-z.css', entryOptions: { 'theme.css': { attributes: {}, inline: true } } });
+    expect(snippet).not.toContain('inline_asset_content');
+  });
+
+  it('applies attributes to development tags and ignores inline', () => {
+    const snippet = developmentSnippet('https://vite.example.test', entries, root, { 'theme.css': { attributes: { media: 'print' }, inline: true }, 'theme.ts': { attributes: { 'data-x': true }, inline: false } });
+    expect(snippet).toContain('<link rel="stylesheet" href="https://vite.example.test/frontend/theme.css" crossorigin="anonymous" media="print">');
+    expect(snippet).toContain('<script type="module" src="https://vite.example.test/frontend/theme.ts" crossorigin="anonymous" data-x></script>');
+    expect(snippet).not.toContain('inline_asset_content');
+  });
+
+  it('leaves output unchanged when no entry options are given', () => {
+    const plain = renderProductionSnippet(manifest, entries, root, { modulePreload: true });
+    const explicit = renderProductionSnippet(manifest, entries, root, { modulePreload: true, entryOptions: { 'theme.css': { attributes: {}, inline: false }, 'theme.ts': { attributes: {}, inline: false } } });
+    expect(explicit).toBe(plain);
   });
 });

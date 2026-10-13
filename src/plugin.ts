@@ -111,6 +111,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         const generatedSnippet = renderProductionSnippet(manifest, options.entries, options.themeRoot, {
           modulePreload: config.build.modulePreload !== false,
           aggregateCss,
+          entryOptions: options.entryOptions,
         });
         const sizeWarning = snippetSizeWarning(generatedSnippet, sourceKey(snippet, options.themeRoot));
         if (sizeWarning) config.logger.warn(sizeWarning);
@@ -157,7 +158,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           const origin = options.devOrigin?.origin ?? localOrigin(server);
           const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet');
           const original = existsSync(snippet) ? { exists: true, content: readText(snippet, 'existing Liquid snippet') } : { exists: false, content: '' };
-          const content = developmentSnippet(origin, options.entries, options.themeRoot);
+          const content = developmentSnippet(origin, options.entries, options.themeRoot, options.entryOptions);
           atomicWrite(snippet, content);
           const developmentHash = sha(content);
           development = { hash: developmentHash, original };
