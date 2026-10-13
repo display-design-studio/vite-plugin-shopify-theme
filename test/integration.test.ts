@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { initialize } from '../src/cli/init.js';
 import { shopifyTheme } from '../src/index.js';
 
 const roots: string[] = [];
@@ -427,5 +428,22 @@ describe('development server without a listening phase', () => {
     plugin.closeServer();
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
     expect(existsSync(lockPath(root))).toBe(false);
+  });
+});
+
+describe('init followed by build', () => {
+  it('produces a theme that builds and replaces the placeholder snippet', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-init-build-'));
+    roots.push(root);
+    for (const directory of ['assets', 'layout', 'snippets']) mkdirSync(join(root, directory));
+    writeFileSync(join(root, 'layout/theme.liquid'), '<html><head></head><body>{{ content_for_layout }}</body></html>\n');
+    await initialize({ yes: true, directory: root, language: 'js', tailwind: false, packageManager: 'npm' }, { version: '0.0.0', cwd: '/', run: vi.fn(), log: vi.fn() });
+    const themeRoot = realpathSync.native(root);
+    expect(readFileSync(snippetPath(themeRoot), 'utf8')).toContain('Placeholder created by vite-shopify-theme init');
+    await build({ configFile: false, root: themeRoot, logLevel: 'silent', plugins: [shopifyTheme({ themeRoot, entries: { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.js': 'frontend/entrypoints/theme.js' } })] });
+    const snippet = readFileSync(snippetPath(themeRoot), 'utf8');
+    expect(snippet).toContain("{% when 'theme.js' %}");
+    expect(snippet).not.toContain('Placeholder');
+    expect(existsSync(lockPath(themeRoot))).toBe(false);
   });
 });
