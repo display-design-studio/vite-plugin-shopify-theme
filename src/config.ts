@@ -10,10 +10,28 @@ const STYLE_ENTRY_RE = /\.(?:css|pcss|postcss|scss|sass|less|styl|stylus)$/i;
 // `Access-Control-Allow-Origin` of the tunnel would block every Shopify page.
 const LOCAL_ORIGIN = /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
 const SHOPIFY_ORIGIN = /^https:\/\/(?:[a-z0-9-]+\.)*(?:myshopify|shopify)\.com$/i;
+const ATTRIBUTE_NAME_RE = /^[a-z][a-z0-9-]*$/;
+const RESERVED_ATTRIBUTES = new Set(['src', 'href', 'rel', 'type', 'integrity', 'crossorigin']);
+const ENTRY_OPTION_KEYS = new Set(['source', 'attributes', 'inline']);
 const LIQUID_ENTRY_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+/** Per-entry options. A plain string is shorthand for `{ source }`. */
+export interface EntryOptions {
+  /** Source file, relative to `themeRoot`. */
+  source: string;
+  /** Extra attributes for the entry's generated script and stylesheet tags. `true` renders a boolean attribute. */
+  attributes?: Record<string, string | true>;
+  /** Stylesheet entries only: render the built CSS inline in production. */
+  inline?: boolean;
+}
+
+export interface NormalizedEntryOptions {
+  attributes: Record<string, string | true>;
+  inline: boolean;
+}
+
 export interface ShopifyThemeOptions {
-  entries: Record<string, string>;
+  entries: Record<string, string | EntryOptions>;
   themeRoot?: string;
   snippet?: string;
   devOrigin?: string;
@@ -22,6 +40,7 @@ export interface ShopifyThemeOptions {
 
 export interface NormalizedOptions {
   entries: Record<string, string>;
+  entryOptions: Record<string, NormalizedEntryOptions>;
   themeRoot: string;
   snippet: string;
   devOrigin?: URL;
@@ -110,6 +129,34 @@ function validateThemeDirectory(root: string, path: string, purpose: string): vo
   canonicalPathInside(root, path, purpose, true);
 }
 
+function normalizeAttributes(name: string, attributes: unknown): Record<string, string | true> {
+  if (attributes === undefined) return {};
+  if (!isRecord(attributes)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" attributes must be an object mapping attribute names to strings or true.`);
+  const normalized: Record<string, string | true> = {};
+  for (const attribute of Object.keys(attributes).sort()) {
+    const value = attributes[attribute];
+    if (!ATTRIBUTE_NAME_RE.test(attribute)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" attribute ${JSON.stringify(attribute)} is invalid. Use lowercase letters, digits, and hyphens, starting with a letter.`);
+    if (RESERVED_ATTRIBUTES.has(attribute) || attribute.startsWith('on')) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" attribute "${attribute}" is managed by the plugin and cannot be set. Remove it from the entry attributes.`);
+    if (value !== true && typeof value !== 'string') throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" attribute "${attribute}" must be a string or true, received ${displayValue(value)}.`);
+    if (typeof value === 'string' && (/\{\{|\{%|\}\}|%\}/.test(value) || /[\u0000-\u001f\u007f]/.test(value))) {
+      throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" attribute "${attribute}" must not contain Liquid delimiters or control characters.`);
+    }
+    normalized[attribute] = value;
+  }
+  return normalized;
+}
+
+function normalizeEntry(name: string, value: unknown): { source: string; options: NormalizedEntryOptions } {
+  if (typeof value === 'string') return { source: value, options: { attributes: {}, inline: false } };
+  if (!isRecord(value)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" must map to a source path string or an object with a "source" path.`);
+  const unknown = Object.keys(value).find((key) => !ENTRY_OPTION_KEYS.has(key));
+  if (unknown) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" has unknown option ${JSON.stringify(unknown)}. Supported options: source, attributes, inline.`);
+  if (typeof value.source !== 'string') throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" must map to a non-empty source path string.`);
+  if (value.inline !== undefined && typeof value.inline !== 'boolean') throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" option "inline" must be a boolean.`);
+  if (value.inline && !isStyleEntry(value.source)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" sets "inline", which is only supported for stylesheet entries.`);
+  return { source: value.source, options: { attributes: normalizeAttributes(name, value.attributes), inline: value.inline === true } };
+}
+
 export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd()): NormalizedOptions {
   if (!options || !isRecord(options.entries) || Object.keys(options.entries).length === 0) {
     throw diagnostic('CONFIG_ENTRIES', '`entries` must be an object containing at least one Liquid name/source mapping, for example `{ "theme.ts": "frontend/theme.ts" }`.');
@@ -134,12 +181,14 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
   validateThemeDirectory(themeRoot, dirname(unresolvedSnippet), 'configured snippet directory');
   const snippet = canonicalPathInside(themeRoot, unresolvedSnippet, `Configured snippet "${configuredSnippet}"`);
   const entries: Record<string, string> = {};
+  const entryOptions: Record<string, NormalizedEntryOptions> = {};
   const sources = new Set<string>();
-  for (const [name, source] of Object.entries(options.entries)) {
+  for (const [name, entry] of Object.entries(options.entries)) {
     if (!LIQUID_ENTRY_NAME_RE.test(name)) {
       throw diagnostic('CONFIG_ENTRIES', `Liquid entry name ${JSON.stringify(name)} is invalid. Use only ASCII letters, digits, dots, underscores, and hyphens, starting with a letter or digit, such as "theme.ts".`);
     }
-    if (typeof source !== 'string' || source.length === 0) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" must map to a non-empty source path string.`);
+    const { source, options: normalizedEntry } = normalizeEntry(name, entry);
+    if (source.length === 0) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" must map to a non-empty source path string.`);
     const unresolved = resolve(themeRoot, source);
     if (!inside(themeRoot, unresolved)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" source "${source}" resolves outside theme root "${themeRoot}". Choose a source inside the theme.`);
     if (!existsSync(unresolved)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" source "${source}" was not found at "${unresolved}". Create the file or correct the entry path.`);
@@ -152,6 +201,7 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
     if (sources.has(absolute)) throw diagnostic('CONFIG_ENTRIES', `Entry "${name}" duplicates source "${source}" resolved at "${absolute}". Each Liquid entry must use a distinct source file.`);
     sources.add(absolute);
     entries[name] = absolute;
+    entryOptions[name] = normalizedEntry;
   }
   let devOrigin: URL | undefined;
   if (options.devOrigin) {
@@ -161,7 +211,7 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
       throw diagnostic('CONFIG_DEV_ORIGIN', `devOrigin "${options.devOrigin}" must use HTTPS and contain only an origin, without credentials, path, query, or hash.`);
     }
   }
-  return { entries, themeRoot, snippet, devOrigin, diagnostics: options.diagnostics ?? false };
+  return { entries, entryOptions, themeRoot, snippet, devOrigin, diagnostics: options.diagnostics ?? false };
 }
 
 function configurationConflict(key: string, actual: unknown, expected: string): Error {
