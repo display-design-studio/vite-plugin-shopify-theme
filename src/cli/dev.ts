@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -28,7 +28,32 @@ async function snippetReady(vite: ChildProcess, cwd: string, closed: () => boole
   return false;
 }
 
-export function runDevelopment(viteArguments: string[], runtime: DevRuntime = {}) {
+const environmentConfig = 'shopify.theme.toml';
+const developmentEnvironment = /^\s*\[environments\.(?:development|"development")\]\s*(?:#.*)?$/m;
+
+/** Arguments before `--` go to Vite; arguments after it go to `shopify theme dev`. */
+export function splitDevelopmentArguments(arguments_: string[]) {
+  const separator = arguments_.indexOf('--');
+  return separator === -1 ? { vite: arguments_, shopify: [] as string[] } : { vite: arguments_.slice(0, separator), shopify: arguments_.slice(separator + 1) };
+}
+
+/**
+ * Selects the `development` Shopify CLI environment automatically when `shopify.theme.toml` defines it,
+ * unless the caller already chose an environment by flag or SHOPIFY_FLAG_ENVIRONMENT.
+ */
+export function shopifyThemeArguments(cwd: string, extra: string[], env: NodeJS.ProcessEnv = process.env): string[] {
+  const chosen = extra.some((argument) => argument === '-e' || argument === '--environment' || argument.startsWith('--environment=')) || Boolean(env.SHOPIFY_FLAG_ENVIRONMENT);
+  const file = join(cwd, environmentConfig);
+  const automatic = !chosen && existsSync(file) && developmentEnvironment.test(readFileSync(file, 'utf8'));
+  return ['theme', 'dev', ...(automatic ? ['--environment', 'development'] : []), ...extra];
+}
+
+function shellQuote(argument: string): string {
+  return /^[\w@%+=:,./-]+$/.test(argument) ? argument : `"${argument.replace(/"/g, '\\"')}"`;
+}
+
+export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
+  const { vite: viteArguments, shopify: shopifyArguments } = splitDevelopmentArguments(arguments_);
   const cwd = resolve(runtime.cwd ?? process.cwd());
   const spawnProcess = runtime.spawn ?? spawn;
   const platform = runtime.platform ?? process.platform;
@@ -55,9 +80,10 @@ export function runDevelopment(viteArguments: string[], runtime: DevRuntime = {}
     const ready = await (runtime.ready ?? snippetReady)(vite, cwd, () => closing);
     if (closing) return;
     if (!ready) console.warn(`vite-shopify-theme: Vite did not write the development snippet within ${readyTimeout / 1000}s; starting Shopify CLI anyway.`);
+    const themeArguments = shopifyThemeArguments(cwd, shopifyArguments);
     const shopify = platform === 'win32'
-      ? spawnProcess('shopify theme dev', { cwd, env: process.env, stdio: 'inherit', shell: true })
-      : spawnProcess('shopify', ['theme', 'dev'], { cwd, env: process.env, stdio: 'inherit' });
+      ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env: process.env, stdio: 'inherit', shell: true })
+      : spawnProcess('shopify', themeArguments, { cwd, env: process.env, stdio: 'inherit' });
     children.push(shopify);
     watch(shopify);
   })();
