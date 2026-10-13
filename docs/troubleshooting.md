@@ -42,7 +42,7 @@ The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. U
 
 ## Shopify reports `Upload Errors` such as `cart.json` already exists with the `liquid` extension
 
-This comes from the remote theme, not the plugin: the theme Shopify CLI uploads to already has `templates/cart.liquid`, and a theme cannot hold both `cart.liquid` and `cart.json`. It usually means `dev` targeted a store theme or an old development theme. Define `[environments.development]` in `shopify.theme.toml` so `dev` always uses the same store, delete the old development theme (`shopify theme list`, then `shopify theme delete`), and run `dev` again to create a clean one.
+This comes from the remote theme, not the plugin. Shopify CLI keeps one development theme per store on your machine and reuses it for every project. If an earlier project left `templates/cart.liquid` there, the first `dev` of a new project uploads `cart.json` while `cart.liquid` still exists, and Shopify rejects it. Shopify CLI then removes remote files that are missing locally, so running `dev` again usually succeeds. To avoid the error, delete the old development theme first (`shopify theme list`, then `shopify theme delete`), or define `[environments.development]` in `shopify.theme.toml` with a dedicated `theme` for the project.
 
 ## Before opening an issue
 
