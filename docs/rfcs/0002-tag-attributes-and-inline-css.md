@@ -60,7 +60,8 @@ shopify({
 - The built file stays in `assets` and in the ownership record, because the filter reads it from the theme.
 - Development ignores `inline` and keeps the Vite `<link>` so HMR continues to work.
 - The snippet stays small: it holds the filter call, not the CSS, so the 256 kB snippet limit is unaffected. The rendered page grows by the CSS size, which is the intended trade-off.
-- Open item: confirm in Shopify's documentation which asset types `inline_asset_content` accepts and any size limits before implementation.
+- Shopify's `inline_asset_content` filter accepts only SVG, JS, or CSS assets, and the asset must be smaller than 15 KB ([filter reference](https://shopify.dev/docs/api/liquid/filters/inline_asset_content)). This makes `inline` suitable for small critical stylesheets, not full bundles.
+- The build checks the size of each inlined stylesheet. A file of 15 KB or more fails the build with a `CONFIG_ENTRIES`-style diagnostic naming the entry and size, because Shopify would not inline it.
 
 ## Invariants check
 
@@ -85,6 +86,7 @@ Purely additive. String entries behave exactly as before. The diagnostics add no
 
 ## Open questions
 
-1. Should `attributes` also be accepted globally (one map for all entries)?
-2. Is `crossorigin` worth allowing with a validated value, or should it stay plugin-owned?
-3. Should URL-only output (no tag) be part of this RFC or the per-entry snippet RFC?
+1. Should an oversized inline stylesheet fail the build (proposed) or fall back to a normal `<link>` with a warning?
+2. Should `attributes` also be accepted globally (one map for all entries)?
+3. Is `crossorigin` worth allowing with a validated value, or should it stay plugin-owned?
+4. Should URL-only output (no tag) be part of this RFC or the per-entry snippet RFC?
