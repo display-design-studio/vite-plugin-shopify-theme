@@ -293,6 +293,39 @@ describe('option validation', () => {
     expect(() => normalizeOptions({ entries: {} }, root)).toThrow(/^\[shopify-theme:CONFIG_ENTRIES\]/);
   });
 
+  it('accepts string and object entries and normalizes entry options', () => {
+    const root = fixture();
+    const normalized = normalizeOptions({ entries: {
+      'theme.ts': 'frontend/theme.ts',
+      'theme.css': { source: 'frontend/theme.css', inline: true, attributes: { media: 'print', 'data-b': true, 'data-a': 'x' } },
+    } }, root);
+    expect(normalized.entries).toEqual({ 'theme.ts': join(root, 'frontend/theme.ts'), 'theme.css': join(root, 'frontend/theme.css') });
+    expect(normalized.entryOptions['theme.ts']).toEqual({ attributes: {}, inline: false });
+    expect(normalized.entryOptions['theme.css']).toEqual({ attributes: { 'data-a': 'x', 'data-b': true, media: 'print' }, inline: true });
+    expect(Object.keys(normalized.entryOptions['theme.css'].attributes)).toEqual(['data-a', 'data-b', 'media']);
+  });
+
+  it.each([
+    ['unknown option', { source: 'frontend/theme.ts', extra: 1 }, /unknown option "extra"/],
+    ['missing source', { attributes: {} }, /non-empty source path/],
+    ['non-object entry', 5, /source path string or an object/],
+    ['non-boolean inline', { source: 'frontend/theme.css', inline: 'yes' }, /"inline" must be a boolean/],
+    ['inline on a script', { source: 'frontend/theme.ts', inline: true }, /only supported for stylesheet entries/],
+    ['non-object attributes', { source: 'frontend/theme.ts', attributes: 'x' }, /attributes must be an object/],
+    ['invalid attribute name', { source: 'frontend/theme.ts', attributes: { 'Data-X': 'a' } }, /attribute "Data-X" is invalid/],
+    ['reserved attribute', { source: 'frontend/theme.ts', attributes: { src: 'a' } }, /managed by the plugin/],
+    ['crossorigin attribute', { source: 'frontend/theme.ts', attributes: { crossorigin: 'use-credentials' } }, /managed by the plugin/],
+    ['event handler attribute', { source: 'frontend/theme.ts', attributes: { onload: 'x()' } }, /managed by the plugin/],
+    ['non-string attribute value', { source: 'frontend/theme.ts', attributes: { 'data-x': 1 } }, /must be a string or true/],
+    ['false attribute value', { source: 'frontend/theme.ts', attributes: { 'data-x': false } }, /must be a string or true/],
+    ['Liquid output delimiter', { source: 'frontend/theme.ts', attributes: { 'data-x': '{{ secret }}' } }, /Liquid delimiters/],
+    ['Liquid tag delimiter', { source: 'frontend/theme.ts', attributes: { 'data-x': 'a %} b' } }, /Liquid delimiters/],
+    ['control character', { source: 'frontend/theme.ts', attributes: { 'data-x': 'a\nb' } }, /control characters/],
+  ])('rejects invalid entry options: %s', (_name, entry, message) => {
+    const root = fixture();
+    expect(() => normalizeOptions({ entries: { app: entry as never } }, root)).toThrow(new RegExp(`^\\[shopify-theme:CONFIG_ENTRIES\\].*${message.source}`));
+  });
+
   it('normalizes and validates optional diagnostic logging', () => {
     const root = fixture();
     expect(normalizeOptions({ entries: { app: 'frontend/theme.ts' } }, root).diagnostics).toBe(false);
