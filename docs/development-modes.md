@@ -27,7 +27,7 @@ On every change to a source file, or to a Liquid file Tailwind scans:
 You will see one line per rebuild, for example `[shopify-theme] Synced 1 new asset; snippet updated.`
 
 - **Failures keep the last working version.** A compile error leaves the snippet and assets untouched and the watcher keeps running; fix the file and it recovers.
-- **Older assets stay for a while.** Shopify uploads are not ordered, so the plugin keeps the last 10 generations of hashed assets in `assets/` while the session runs. Anything older that the plugin generated is removed, and unrecorded files never are. Leftovers from a crash are removed on the next start.
+- **Older assets stay only during the session.** Shopify uploads are not ordered, so the plugin keeps the last 10 generations of hashed assets in `assets/` while it runs. When you stop, only the assets the snippet names remain, and a crash's leftovers are removed on the next start. Unrecorded files are never touched.
 - **The snippet stays a production snippet** when you stop with Ctrl+C: it references the last published assets, like after `vite build`. A live or uncertain lock still fails safely.
 - If the first build takes longer than 120 seconds, a warning is printed and Shopify CLI starts anyway.
 - The default HMR mode is unchanged. `--sync` is not forwarded to Shopify CLI; use it before `--`.

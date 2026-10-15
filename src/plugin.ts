@@ -36,9 +36,23 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     logDiagnostic('DEVELOPMENT_RESTORED', `snippet=${sourceKey(options.snippet, options.themeRoot)}`);
     return true;
   };
+  // When a sync session ends, only the latest generation is still needed: the snippet on disk names it.
+  const pruneToLatestGeneration = () => {
+    const latest = generations.at(-1);
+    if (!owner || !latest || generations.length < 2) return;
+    const assetsRoot = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, 'assets'), 'Shopify assets directory');
+    const statePath = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, STATE_FILE), 'Generated asset ownership state');
+    const recorded = readOwnershipState(statePath).files;
+    const keep = new Set(latest);
+    const stale = recorded.filter((file) => !keep.has(file)).map((file) => resolveOwnedAsset(options.themeRoot, assetsRoot, file)).filter((target) => existsSync(target));
+    for (const target of stale) removeFile(target, 'retained plugin-owned asset');
+    atomicWrite(statePath, `${JSON.stringify({ files: [...latest].sort() }, null, 2)}\n`);
+    generations = [latest];
+  };
   const release = () => {
     let failure: unknown;
-    try { restoreDevelopmentSnippet(); } catch (error) { failure = error; }
+    try { pruneToLatestGeneration(); } catch (error) { failure = error; }
+    try { restoreDevelopmentSnippet(); } catch (error) { failure ??= error; }
     try {
       if (releaseLock(options.themeRoot, owner)) logDiagnostic('OWNERSHIP_RELEASED', `mode=${owner?.mode} root=${options.themeRoot}`);
     } catch (error) { failure ??= error; }

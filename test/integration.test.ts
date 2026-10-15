@@ -590,7 +590,13 @@ describe('sync mode (build --watch)', () => {
 
     await watcher.close();
     expect(existsSync(lockPath(root))).toBe(false);
-    expect(existsSync(join(root, 'assets', second[0]))).toBe(true);
+    // Only the generation the snippet names survives the session; no extra files are left behind.
+    const left = readdirSync(join(root, 'assets')).filter((file) => file !== 'manual.svg' && file !== 'vite-manifest.json').sort();
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    expect(left).toHaveLength(2);
+    for (const file of left) expect(snippet).toContain(file);
+    expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).toEqual(left);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
   });
 
   it('keeps the last working snippet through a failed compile and recovers', async () => {

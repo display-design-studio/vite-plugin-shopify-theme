@@ -6,7 +6,7 @@ All notable changes to this package are documented here.
 
 ### Added
 
-- `vite-shopify-theme dev --sync` runs Vite as a build watcher and starts Shopify CLI after the first published build, so Theme Editor previews work without a tunnel. Hashed assets are published before the snippet, the snippet is rewritten only when it changes, compile errors keep the last working version, and the last 10 generations of generated assets are retained during the session. HMR remains the default.
+- `vite-shopify-theme dev --sync` runs Vite as a build watcher and starts Shopify CLI after the first published build, so Theme Editor previews work without a tunnel. Hashed assets are published before the snippet, the snippet is rewritten only when it changes, compile errors keep the last working version, and the last 10 generations of generated assets are retained during the session and pruned to the latest one when it ends. HMR remains the default.
 
 ## 0.5.1
 
