@@ -10,7 +10,7 @@ const LOCK_DIR = '.vite-shopify-theme.lock';
 const LOCK_FILE = 'owner.json';
 
 export interface DevelopmentRecovery { snippet: string; developmentHash: string; original: { exists: boolean; content: string } }
-export interface LockOwner { token: string; pid: number; host?: string; mode: 'build' | 'development'; startedAt: string; development?: DevelopmentRecovery }
+export interface LockOwner { token: string; pid: number; host?: string; mode: 'build' | 'development'; startedAt: string; development?: DevelopmentRecovery; /** Number of completed builds in a watch session; lets `dev --editor` know when the first build finished. */ generation?: number }
 export interface OwnershipState { files: string[] }
 
 export function readText(path: string, purpose: string): string {
@@ -70,7 +70,7 @@ function ownerPath(root: string): string { return canonicalPathInside(root, reso
 function isOriginal(value: unknown): value is DevelopmentRecovery['original'] { return isRecord(value) && typeof value.exists === 'boolean' && typeof value.content === 'string'; }
 function isDevelopmentRecovery(value: unknown): value is DevelopmentRecovery { return isRecord(value) && typeof value.snippet === 'string' && typeof value.developmentHash === 'string' && isOriginal(value.original); }
 function isLockOwner(value: unknown): value is LockOwner {
-  return isRecord(value) && typeof value.token === 'string' && value.token.length > 0 && Number.isInteger(value.pid) && (value.pid as number) > 0 && (value.mode === 'build' || value.mode === 'development') && typeof value.startedAt === 'string' && value.startedAt.length > 0 && (value.host === undefined || typeof value.host === 'string') && (value.development === undefined || isDevelopmentRecovery(value.development));
+  return isRecord(value) && typeof value.token === 'string' && value.token.length > 0 && Number.isInteger(value.pid) && (value.pid as number) > 0 && (value.mode === 'build' || value.mode === 'development') && typeof value.startedAt === 'string' && value.startedAt.length > 0 && (value.host === undefined || typeof value.host === 'string') && (value.development === undefined || isDevelopmentRecovery(value.development)) && (value.generation === undefined || (Number.isInteger(value.generation) && (value.generation as number) >= 0));
 }
 
 function readOwner(root: string): LockOwner | undefined {

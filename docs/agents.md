@@ -22,6 +22,8 @@ This page is for coding agents and for people writing instructions for them. Eve
 
 **Start development**: `npm run dev` runs Vite first and Shopify CLI after the development snippet exists. Prefer it over starting `shopify theme dev` separately, so the first sync includes the snippet. Store settings live in `shopify.theme.toml` (`[environments.development]`); `dev` selects that environment automatically, and options after `--` go to Shopify CLI.
 
+**Theme Editor**: `npm run dev:editor` builds in watch mode and syncs hashed assets to the development theme, so changes appear live in the editor without a tunnel. Prefer it over a tunnel unless HMR inside the editor is needed.
+
 **Production assets**: `npm run build`, then upload the theme with Shopify CLI.
 
 **Debug**: set `diagnostics: true` in the plugin options. Messages look like `[shopify-theme:CODE] ...`; the code names the failing boundary. See [Troubleshooting](./troubleshooting).
@@ -31,7 +33,8 @@ This page is for coding agents and for people writing instructions for them. Eve
 | Command | Purpose |
 | --- | --- |
 | `npx @display-studio/vite-plugin-shopify-theme init [dir] --yes` | Configure or create a theme |
-| `npm run dev` | Vite plus Shopify CLI |
+| `npm run dev` | Vite plus Shopify CLI (HMR) |
+| `npm run dev:editor` | Watch build plus Shopify CLI (live Theme Editor, no tunnel) |
 | `npm run build` | Generate assets and snippet |
 
 ## Copyable `AGENTS.md` for a theme project
@@ -43,7 +46,7 @@ This page is for coding agents and for people writing instructions for them. Eve
 - Add a page script: create the file, add a flat key to `entries`, render `{% render 'vite-tag', entry: 'name.ts' %}`.
 - Never edit `snippets/vite-tag.liquid`, `.vite-shopify-theme.json`, or `.vite-shopify-theme.lock/`; they are generated.
 - Do not delete files in `assets/` that you did not create; only generated files are recorded and removable.
-- `npm run dev` starts Vite and Shopify CLI. `npm run build` produces assets for upload.
+- `npm run dev` starts Vite and Shopify CLI. `npm run dev:editor` does the same with synced assets for the Theme Editor. `npm run build` produces assets for upload.
 - Diagnostics: errors start with `[shopify-theme:CODE]`. Full docs: https://display-design-studio.github.io/vite-plugin-shopify-theme/
 - Shopify skills for agents: `npx skills add Shopify/shopify-ai-toolkit` (opt-in; read its telemetry notice first).
 ````

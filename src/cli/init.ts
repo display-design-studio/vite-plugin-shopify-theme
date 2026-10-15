@@ -175,7 +175,7 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
     if (manifest.scripts?.[name] && manifest.scripts[name] !== expected) throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
   }
   if (manifest.type && manifest.type !== 'module') throw new Error(`Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`);
-  const nextManifest = { ...manifest, type: 'module', scripts: { ...manifest.scripts, build: 'vite build', dev: 'vite-shopify-theme dev' } };
+  const nextManifest = { ...manifest, type: 'module', scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts, build: 'vite build', dev: 'vite-shopify-theme dev' } };
   for (const [relative, contents] of files) {
     const path = join(root, relative);
     if (existsSync(path) && readFileSync(path, 'utf8') !== contents) throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);

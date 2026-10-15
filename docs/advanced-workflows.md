@@ -26,12 +26,13 @@ The generated snippet is ordinary Liquid. Render each named entry where its load
 
 During `dev`, the generated snippet points at your local Vite server. The local preview (`127.0.0.1:9292`) can reach it, but the Theme Editor runs on an HTTPS Shopify origin, where browsers may block requests to `http://localhost`. If styles or scripts are missing only in the editor, check the browser console for blocked requests to the Vite origin.
 
-Choose one of two workflows:
+Choose one of these workflows:
 
-- **Build snapshot (default).** Run `vite build`, then `shopify theme dev` (for example a `"shopify:host": "vite build && shopify theme dev --host 0.0.0.0"` script). The built, hashed assets are uploaded to the development theme, so the editor does not depend on `localhost`. The build is a snapshot: after changing source (including new Tailwind classes) rebuild and restart to see the result in the editor.
-- **Live editor with a tunnel.** Route an HTTPS tunnel to Vite and set `devOrigin` (see [External tunnels](#external-tunnels)). The editor then loads live assets with HMR and no rebuild.
+- **Editor mode (recommended).** Run `npm run dev:editor`. It runs `vite build --watch` and `shopify theme dev` together, so changes, including new Tailwind classes used in Liquid, reach the local preview and the Theme Editor in about a second or two with no tunnel. See [Development modes](./development-modes#editor-mode).
+- **Build snapshot.** Run `vite build`, then `shopify theme dev` (for example a `"shopify:host": "vite build && shopify theme dev --host 0.0.0.0"` script). The built, hashed assets are uploaded to the development theme. The build is a snapshot: rebuild and restart after changing source.
+- **Live editor with a tunnel.** Route an HTTPS tunnel to Vite and set `devOrigin` (see [External tunnels](#external-tunnels)). The editor then loads live assets with HMR and no upload. This needs a tunnel that you manage yourself.
 
-`vite build --watch` is not a supported workflow.
+Running `vite build --watch` by hand is not supported; use `dev --editor`, which coordinates the watch build, the ownership lock, and Shopify CLI.
 
 Theme App Extensions have their own Shopify build and deployment lifecycle. Use this plugin only when the extension layout exposes an appropriate theme-like asset/snippet boundary; do not redirect an extension build into a production theme's ownership state.
 

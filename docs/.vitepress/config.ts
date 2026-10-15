@@ -23,7 +23,7 @@ export default defineConfig({
       { text: 'Cookbook', collapsed: false, items: [
         { text: 'Overview', link: '/cookbook/' },
         { text: 'Setup checklist', link: '/cookbook/setup-checklist' },
-        { text: 'Live Theme Editor with a tunnel', link: '/cookbook/theme-editor-and-tunnels' },
+        { text: 'Live Theme Editor', link: '/cookbook/theme-editor-and-tunnels' },
         { text: 'Fonts, images, and vendor code', link: '/cookbook/fonts-images-vendors' },
         { text: 'Critical CSS', link: '/cookbook/critical-css' },
         { text: 'Page-specific entrypoints', link: '/cookbook/page-specific-entrypoints' },

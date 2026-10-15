@@ -1,8 +1,26 @@
-# Live Theme Editor with a tunnel
+# Live Theme Editor
 
-Goal: edit sections in the Shopify Theme Editor while Vite serves live assets with HMR.
+Goal: edit sections in the Shopify Theme Editor and see style and script changes without rebuilding by hand.
 
-The Theme Editor runs on an HTTPS Shopify origin, so it cannot load `http://localhost` assets. Route an HTTPS tunnel to Vite and tell the plugin its public origin. The plugin does not create or stop the tunnel.
+The Theme Editor runs on an HTTPS Shopify origin, so it cannot load assets from `http://localhost`. There are two ways around that.
+
+## Recommended: editor mode (no tunnel)
+
+```sh
+npm run dev:editor
+```
+
+This runs `vite build --watch` and `shopify theme dev` together. Hashed assets are built and synced to your development theme, and the page reloads after each sync. Nothing outside the project is needed. Open the editor URL printed by Shopify CLI, change a Liquid file or a source file (including a new Tailwind class), and the editor updates in about a second or two.
+
+Things to know:
+
+- It is a rebuild and upload per change, not HMR, so expect a short delay and a full-page reload.
+- Right after a change the page can briefly render without styles because Shopify CLI uploads files in no fixed order. Reload if it does not settle.
+- Set your store in `shopify.theme.toml` so Shopify CLI does not ask for it, as for `dev`. See [Development modes](../development-modes#editor-mode).
+
+## Alternative: HMR through a tunnel
+
+Use this when you need instant HMR inside the editor and are willing to manage a tunnel. Route an HTTPS tunnel to Vite and tell the plugin its public origin. The plugin does not create or stop the tunnel.
 
 ## Steps
 
@@ -22,7 +40,7 @@ The Theme Editor runs on an HTTPS Shopify origin, so it cannot load `http://loca
    cloudflared tunnel --url http://localhost:5173
    ```
 
-3. Export the origin (no path, no trailing slash) and start development:
+3. Export the origin (no path, no trailing slash) and start the default development mode:
 
    ```sh
    VITE_DEV_ORIGIN=https://your-tunnel.example npm run dev
@@ -41,12 +59,12 @@ With `devOrigin` set, Vite is configured with:
 - CORS responses for requests from `localhost`, the tunnel origin, and HTTPS `*.myshopify.com` and `*.shopify.com` pages (storefront preview, Theme Editor, admin).
 
 ::: warning Custom storefront domains
-Pages served from a custom domain are not in the CORS allow list. If the editor loads your store through a custom domain and assets are blocked, use the build snapshot workflow below, or open the store through its `*.myshopify.com` address.
+Pages served from a custom domain are not in the CORS allow list. If the editor loads your store through a custom domain and assets are blocked, use editor mode, or open the store through its `*.myshopify.com` address.
 :::
 
-## Build snapshot alternative
+## Build snapshot
 
-No tunnel needed: run `vite build`, then `shopify theme dev`. The editor uses uploaded hashed assets. Rebuild after source changes.
+Without either mode, run `vite build`, then `shopify theme dev`. The editor uses the uploaded hashed assets and does not change until you rebuild.
 
 ## If something is missing in the editor
 
@@ -55,7 +73,7 @@ No tunnel needed: run `vite build`, then `shopify theme dev`. The editor uses up
 | Unstyled page, CORS error in the console | The request goes to the tunnel origin; the page origin is a custom domain (see warning). |
 | Vite reports a blocked request or disallowed host | `devOrigin` hostname differs from the tunnel hostname actually in use. |
 | HMR never connects | The tunnel must forward WebSockets. Probe the tunnel URL directly. |
-| Tunnel URL changed | Restart `dev` with the new `VITE_DEV_ORIGIN`; origins must be stable during a run. |
+| Tunnel URL changed | Restart `dev` with the new `VITE_DEV_ORIGIN`; origins must be stable during a run. A quick-tunnel URL changes on every start, so pass it through the environment rather than writing it into the config. |
 | `console.log` appears twice in the editor | Expected: the editor loads the page in two iframes (preview and section picker). |
 
 See [Troubleshooting](../troubleshooting) for the boundary-first checklist and [Advanced workflows](../advanced-workflows#external-tunnels).

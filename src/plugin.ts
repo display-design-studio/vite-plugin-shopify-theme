@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
+import { setTimeout as delay } from 'node:timers/promises';
+import type { Plugin, ResolvedConfig, Rollup, ViteDevServer } from 'vite';
 import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, errorDetail, formatDiagnostic, inside, isStyleEntry, normalizeOptions, RESOLVED_CSS_BUNDLE_ID, VITE_MANIFEST, viteConfig } from './config.js';
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
@@ -8,6 +9,10 @@ import type { LockOwner } from './ownership.js';
 import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, INLINE_ASSET_LIMIT, inlineSizeWarning, RESOLVED_HOT_RELOAD_CLIENT, snippetSizeWarning, sourceKey } from './snippets.js';
 
 type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT_ACTIVATED' | 'DEVELOPMENT_RESTORED' | 'HOT_RELOAD' | 'OWNERSHIP_ACQUIRED' | 'OWNERSHIP_RELEASED';
+
+// Shopify CLI uploads changed files concurrently and in no fixed order, so in watch mode the snippet
+// is written shortly after the assets it references to give those uploads a head start.
+const WATCH_SNIPPET_DELAY = 1000;
 
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
@@ -18,6 +23,12 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
   let cssCodeSplit = true;
+  // Asset names of the last two distinct outputs of a watch session. A rebuild that produces the same files
+  // (for example one triggered by the snippet write) does not advance them, so the older output stays retained.
+  let latestGeneration = new Set<string>();
+  let previousGeneration = new Set<string>();
+  let generation = 0;
+  const watching = () => config.command === 'build' && config.build?.watch != null;
   const logDiagnostic = (event: DiagnosticEvent, message: string) => {
     if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
   };
@@ -55,45 +66,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       process.once(signal, handler);
     }
   };
-  return {
-    name: 'vite-plugin-shopify-theme',
-    enforce: 'pre',
-    resolveId(id) {
-      if (id === HOT_RELOAD_CLIENT) return RESOLVED_HOT_RELOAD_CLIENT;
-      if (!cssCodeSplit && id === CSS_BUNDLE_ID) return RESOLVED_CSS_BUNDLE_ID;
-    },
-    load(id) {
-      if (id === RESOLVED_HOT_RELOAD_CLIENT) return HOT_RELOAD_SOURCE;
-      if (!cssCodeSplit && id === RESOLVED_CSS_BUNDLE_ID) {
-        return Object.values(options.entries).filter(isStyleEntry).map((path) => `import ${JSON.stringify(path)};`).join('\n');
-      }
-    },
-    config(user, environment) {
-      options = normalizeOptions(raw, user.root ? resolve(user.root) : process.cwd());
-      cssCodeSplit = environment.command !== 'build' || user.build?.cssCodeSplit !== false;
-      return viteConfig(options, user, !cssCodeSplit);
-    },
-    configResolved(resolved) {
-      config = resolved;
-      logDiagnostic('CONFIG_RESOLVED', `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
-    },
-    buildStart() {
-      if (config.command !== 'build') return;
-      owner = acquireLock(options.themeRoot, 'build');
-      logDiagnostic('OWNERSHIP_ACQUIRED', `mode=build root=${options.themeRoot}`);
-      installProcessHandlers();
-    },
-    generateBundle: {
-      order: 'post',
-      handler(_output, bundle) {
-        if (config.command !== 'build' || cssCodeSplit) return;
-        for (const [file, output] of Object.entries(bundle)) {
-          if (output.type === 'chunk' && output.facadeModuleId === RESOLVED_CSS_BUNDLE_ID) delete bundle[file];
-        }
-      },
-    },
-    writeBundle(_output, bundle) {
-      if (config.command !== 'build') return;
+    const writeOutput = (bundle: Rollup.OutputBundle) => {
       let writtenSnippet: { path: string; generatedHash: string; original: { exists: boolean; content: string } } | undefined;
       try {
         const assetsRoot = canonicalPathInside(options.themeRoot, resolve(options.themeRoot, 'assets'), 'Shopify assets directory');
@@ -128,8 +101,12 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         if (!originalSnippet.exists || originalSnippet.content !== generatedSnippet) atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
+        // In watch mode the remote theme may still render the previous snippet, so the previous build's
+        // assets are kept for one more build and deleted only once two builds in a row omit them.
+        const unchanged = current.size === latestGeneration.size && [...current].every((file) => latestGeneration.has(file));
+        const retained = !watching() ? new Set<string>() : unchanged ? previousGeneration : latestGeneration;
         const stale = previous.files
-          .filter((file) => !current.has(file))
+          .filter((file) => !current.has(file) && !retained.has(file))
           .map((file) => resolveOwnedAsset(options.themeRoot, assetsRoot, file))
           .filter((target) => existsSync(target));
         // Record old and new files together before deleting anything, so a failed
@@ -137,7 +114,16 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         if (stale.length) atomicWrite(statePath, `${JSON.stringify({ files: [...new Set([...previous.files, ...files])].sort() }, null, 2)}\n`);
         for (const target of stale) removeFile(target, 'stale plugin-owned asset');
         const removed = stale.length;
-        atomicWrite(statePath, `${JSON.stringify({ files }, null, 2)}\n`);
+        const kept = previous.files.filter((file) => !current.has(file) && retained.has(file) && existsSync(resolveOwnedAsset(options.themeRoot, assetsRoot, file)));
+        atomicWrite(statePath, `${JSON.stringify({ files: [...new Set([...files, ...kept])].sort() }, null, 2)}\n`);
+        if (watching()) {
+          if (!unchanged) {
+            previousGeneration = latestGeneration;
+            latestGeneration = current;
+          }
+          generation += 1;
+          if (owner) { owner.generation = generation; updateLock(options.themeRoot, owner); }
+        }
         logDiagnostic('BUILD_OUTPUT_WRITTEN', `assets=${files.length} removed=${removed} snippet=${sourceKey(snippet, options.themeRoot)}`);
       } catch (error) {
         let rollbackError: unknown;
@@ -147,15 +133,61 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
             else removeFile(writtenSnippet.path, 'generated Liquid snippet');
           }
         } catch (failure) { rollbackError = failure; }
-        try { cleanup(); } catch (cleanupError) {
+        // A watch session keeps its lock across failed builds so the next edit can recover.
+        try { if (!watching()) cleanup(); } catch (cleanupError) {
           throw diagnostic('BUILD_CLEANUP_FAILED', `Build processing failed and ownership cleanup also failed (${errorDetail(cleanupError)}). Resolve the cleanup error before retrying.`, new AggregateError([error, cleanupError]));
         }
         if (rollbackError) throw diagnostic('BUILD_ROLLBACK_FAILED', `Build processing failed and the prior Liquid snippet could not be restored (${errorDetail(rollbackError)}). Preserve the snippet manually before retrying.`, new AggregateError([error, rollbackError]));
         throw error;
       }
+    };
+  return {
+    name: 'vite-plugin-shopify-theme',
+    enforce: 'pre',
+    resolveId(id) {
+      if (id === HOT_RELOAD_CLIENT) return RESOLVED_HOT_RELOAD_CLIENT;
+      if (!cssCodeSplit && id === CSS_BUNDLE_ID) return RESOLVED_CSS_BUNDLE_ID;
     },
-    buildEnd(error) { if (error && config.command === 'build') cleanup(); },
-    closeBundle() { if (config.command === 'build') cleanup(); },
+    load(id) {
+      if (id === RESOLVED_HOT_RELOAD_CLIENT) return HOT_RELOAD_SOURCE;
+      if (!cssCodeSplit && id === RESOLVED_CSS_BUNDLE_ID) {
+        return Object.values(options.entries).filter(isStyleEntry).map((path) => `import ${JSON.stringify(path)};`).join('\n');
+      }
+    },
+    config(user, environment) {
+      options = normalizeOptions(raw, user.root ? resolve(user.root) : process.cwd());
+      cssCodeSplit = environment.command !== 'build' || user.build?.cssCodeSplit !== false;
+      return viteConfig(options, user, !cssCodeSplit);
+    },
+    configResolved(resolved) {
+      config = resolved;
+      logDiagnostic('CONFIG_RESOLVED', `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
+    },
+    buildStart() {
+      if (config.command !== 'build' || (watching() && owner)) return;
+      owner = acquireLock(options.themeRoot, 'build');
+      logDiagnostic('OWNERSHIP_ACQUIRED', `mode=build root=${options.themeRoot}`);
+      installProcessHandlers();
+    },
+    generateBundle: {
+      order: 'post',
+      handler(_output, bundle) {
+        if (config.command !== 'build' || cssCodeSplit) return;
+        for (const [file, output] of Object.entries(bundle)) {
+          if (output.type === 'chunk' && output.facadeModuleId === RESOLVED_CSS_BUNDLE_ID) delete bundle[file];
+        }
+      },
+    },
+    writeBundle(_output, bundle) {
+      if (config.command !== 'build') return;
+      // Shopify CLI uploads in no fixed order; after the first build of a watch session, give the assets
+      // (already on disk) a head start before the snippet that references them is written.
+      if (watching() && generation > 0) return delay(WATCH_SNIPPET_DELAY).then(() => writeOutput(bundle));
+      writeOutput(bundle);
+    },
+    buildEnd(error) { if (error && config.command === 'build' && !watching()) cleanup(); },
+    closeBundle() { if (config.command === 'build' && !watching()) cleanup(); },
+    closeWatcher() { if (watching()) cleanup(); },
     configureServer(server: ViteDevServer) {
       if (!server.httpServer && !options.devOrigin) {
         throw diagnostic('DEV_ORIGIN_UNAVAILABLE', 'The Vite server has no HTTP server (middleware mode), so the development origin cannot be determined. Configure `devOrigin` or run Vite with its own HTTP server.');

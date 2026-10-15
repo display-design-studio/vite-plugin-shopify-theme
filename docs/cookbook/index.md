@@ -17,7 +17,7 @@ For the underlying platforms, keep the [Shopify theme architecture guide](https:
 ## Recipes
 
 - [Setup checklist](./setup-checklist): new or existing theme to a verified working setup.
-- [Live Theme Editor with a tunnel](./theme-editor-and-tunnels): live assets and HMR inside the Theme Editor.
+- [Live Theme Editor](./theme-editor-and-tunnels): live updates inside the Theme Editor with `dev --editor`, or HMR through a tunnel.
 - [Fonts, images, and vendor code](./fonts-images-vendors): assets from CSS and node_modules packages.
 - [Critical CSS](./critical-css): inline a small first-paint stylesheet with an entry option.
 - [Page-specific entrypoints](./page-specific-entrypoints): connect `request.page_type` to flat, declared entry names.

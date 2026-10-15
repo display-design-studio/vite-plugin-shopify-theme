@@ -2,6 +2,15 @@
 
 All notable changes to this package are documented here.
 
+## 0.6.0
+
+### Added
+
+- `vite-shopify-theme dev --editor` (script `dev:editor`) gives live updates in the Theme Editor without a tunnel or any external tool. It runs `vite build --watch`, waits for the first successful build, then starts `shopify theme dev` with `--live-reload full-page` unless you choose a live-reload mode. HMR stays the default `dev` mode.
+- In watch mode the plugin holds one ownership lock for the whole session, writes the snippet shortly after the assets it references, keeps the previous build's assets for one more build before deleting them, and keeps the last working output after a failed build.
+- `init` adds a `dev:editor` package script when the project does not define one.
+- Documented when to choose each development mode in the development modes guide, the Theme Editor cookbook page, and the agent instructions.
+
 ## 0.5.2
 
 ### Fixed
