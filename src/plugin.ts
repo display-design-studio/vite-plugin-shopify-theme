@@ -125,7 +125,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         for (const warning of oversized) config.logger.warn(warning);
         const sizeWarning = snippetSizeWarning(generatedSnippet, sourceKey(snippet, options.themeRoot));
         if (sizeWarning) config.logger.warn(sizeWarning);
-        atomicWrite(snippet, generatedSnippet);
+        if (!originalSnippet.exists || originalSnippet.content !== generatedSnippet) atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
         const stale = previous.files

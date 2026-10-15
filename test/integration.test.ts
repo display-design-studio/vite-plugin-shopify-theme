@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build, createServer } from 'vite';
@@ -181,6 +181,15 @@ describe('isolated builds', () => {
     expect(readdirSync(root).filter((name) => name.endsWith('.tmp'))).toEqual([]);
     expect(readdirSync(join(root, 'snippets')).filter((name) => name.endsWith('.tmp'))).toEqual([]);
     expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('does not rewrite an unchanged snippet, so watch rebuilds cannot retrigger themselves', async () => {
+    const root = fixture();
+    await buildTheme(root);
+    const past = new Date('2020-01-01T00:00:00Z');
+    utimesSync(snippetPath(root), past, past);
+    await buildTheme(root);
+    expect(statSync(snippetPath(root)).mtimeMs).toBe(past.getTime());
   });
 
   it('cleans a high-volume recorded set without touching unrecorded assets', async () => {
