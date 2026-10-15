@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented here.
 
+## 0.5.2
+
+### Fixed
+
+- `vite build --watch` no longer rebuilds endlessly. The generated snippet is written only when its content changes, so tools that scan the theme, such as Tailwind, no longer see a new file after every build.
+
 ## 0.5.1
 
 ### Added
