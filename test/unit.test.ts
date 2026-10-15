@@ -6,7 +6,7 @@ import { collectManifestTags, developmentSnippet, normalizeOptions, productionSn
 import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
-import { runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
+import { runDevelopment, shopifyThemeArguments, splitDevelopmentArguments } from '../src/cli/dev.js';
 import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
 
@@ -189,6 +189,30 @@ describe('development CLI', () => {
     expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
     signals.get('SIGINT')?.();
     expect(result.children.every((child) => child.killed)).toBe(true);
+  });
+
+  it('runs Vite as a build watcher in sync mode and forwards the rest unchanged', async () => {
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    expect(splitDevelopmentArguments(['--sync', '--mode', 'staging', '--', '--sync'])).toEqual({ sync: true, vite: ['--mode', 'staging'], shopify: ['--sync'] });
+    expect(splitDevelopmentArguments(['--', '--sync']).sync).toBe(false);
+    await runDevelopment(['--sync', '--mode', 'staging', '--', '--theme', '1'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
+    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), 'build', '--watch', '--mode', 'staging']);
+    expect(calls[1][1]).toEqual(['theme', 'dev', '--theme', '1']);
+  });
+
+  it('waits for the owner metadata to report the first published build', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    mkdirSync(join(root, '.vite-shopify-theme.lock'));
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { pid: 4242, killed: false, kill: vi.fn() }); }) as never;
+    const result = runDevelopment(['--sync'], { cwd: root, platform: 'linux', spawn, onSignal: vi.fn() });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(calls).toHaveLength(1);
+    writeFileSync(join(root, '.vite-shopify-theme.lock/owner.json'), JSON.stringify({ pid: 4242, published: true }));
+    await result.started;
+    expect(calls).toHaveLength(2);
   });
 
   it('sends arguments after -- to Shopify and keeps the rest for Vite', async () => {

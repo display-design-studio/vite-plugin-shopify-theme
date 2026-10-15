@@ -14,27 +14,35 @@ export interface DevRuntime {
 }
 
 const readyTimeout = 30_000;
+// The first sync build compiles every entry, so it gets longer than the development server's startup.
+const syncReadyTimeout = 120_000;
 
-// The plugin records `development` in the ownership metadata right after writing the snippet.
-async function snippetReady(vite: ChildProcess, cwd: string, closed: () => boolean) {
-  const owner = join(cwd, '.vite-shopify-theme.lock', 'owner.json');
-  for (let waited = 0; waited < readyTimeout && !closed(); waited += 100) {
-    try {
-      const state = JSON.parse(readFileSync(owner, 'utf8'));
-      if (state?.pid === vite.pid && state.development) return true;
-    } catch { /* not written yet */ }
-    await delay(100);
-  }
-  return false;
+// The plugin records `development` (or, in sync mode, `published`) in the ownership metadata right after writing the snippet.
+function ownerReady(timeout: number): NonNullable<DevRuntime['ready']> {
+  return async (vite, cwd, closed) => {
+    const owner = join(cwd, '.vite-shopify-theme.lock', 'owner.json');
+    for (let waited = 0; waited < timeout && !closed(); waited += 100) {
+      try {
+        const state = JSON.parse(readFileSync(owner, 'utf8'));
+        if (state?.pid === vite.pid && (state.development || state.published)) return true;
+      } catch { /* not written yet */ }
+      await delay(100);
+    }
+    return false;
+  };
 }
 
 const environmentConfig = 'shopify.theme.toml';
 const developmentEnvironment = /^\s*\[environments\.(?:development|"development")\]\s*(?:#.*)?$/m;
 
-/** Arguments before `--` go to Vite; arguments after it go to `shopify theme dev`. */
+/**
+ * Arguments before `--` go to Vite; arguments after it go to `shopify theme dev`.
+ * `--sync` (before `--`) selects sync mode: Vite rebuilds on change and Shopify serves the hashed assets.
+ */
 export function splitDevelopmentArguments(arguments_: string[]) {
   const separator = arguments_.indexOf('--');
-  return separator === -1 ? { vite: arguments_, shopify: [] as string[] } : { vite: arguments_.slice(0, separator), shopify: arguments_.slice(separator + 1) };
+  const before = separator === -1 ? arguments_ : arguments_.slice(0, separator);
+  return { sync: before.includes('--sync'), vite: before.filter((argument) => argument !== '--sync'), shopify: separator === -1 ? [] as string[] : arguments_.slice(separator + 1) };
 }
 
 /**
@@ -53,13 +61,14 @@ function shellQuote(argument: string): string {
 }
 
 export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
-  const { vite: viteArguments, shopify: shopifyArguments } = splitDevelopmentArguments(arguments_);
+  const { sync, vite: userViteArguments, shopify: shopifyArguments } = splitDevelopmentArguments(arguments_);
   const cwd = resolve(runtime.cwd ?? process.cwd());
   const spawnProcess = runtime.spawn ?? spawn;
   const platform = runtime.platform ?? process.platform;
   const require = createRequire(import.meta.url);
   const vitePackage = require.resolve('vite/package.json');
   const viteBin = join(dirname(vitePackage), JSON.parse(readFileSync(vitePackage, 'utf8')).bin.vite);
+  const viteArguments = sync ? ['build', '--watch', ...userViteArguments] : userViteArguments;
   const vite = spawnProcess(process.execPath, [viteBin, ...viteArguments], { cwd, stdio: 'inherit' });
   const children: ChildProcess[] = [vite];
   let closing = false;
@@ -77,9 +86,9 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
   watch(vite);
   // Shopify CLI snapshots local files at startup, so it must start after the snippet exists.
   const started = (async () => {
-    const ready = await (runtime.ready ?? snippetReady)(vite, cwd, () => closing);
+    const ready = await (runtime.ready ?? ownerReady(sync ? syncReadyTimeout : readyTimeout))(vite, cwd, () => closing);
     if (closing) return;
-    if (!ready) console.warn(`vite-shopify-theme: Vite did not write the development snippet within ${readyTimeout / 1000}s; starting Shopify CLI anyway.`);
+    if (!ready) console.warn(`vite-shopify-theme: Vite did not ${sync ? 'publish the first build' : 'write the development snippet'} in time; starting Shopify CLI anyway.`);
     const themeArguments = shopifyThemeArguments(cwd, shopifyArguments);
     const shopify = platform === 'win32'
       ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env: process.env, stdio: 'inherit', shell: true })

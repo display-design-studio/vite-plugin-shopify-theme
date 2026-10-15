@@ -36,7 +36,7 @@ A zero-runtime-dependency Vite 8 plugin and setup CLI for explicit Shopify theme
    npx @display-studio/vite-plugin-shopify-theme init
    ```
 
-2. Start local development with `npm run dev`.
+2. Start local development with `npm run dev`. To preview in the Theme Editor without a tunnel, use `npm run dev -- --sync` (rebuilds on change; no HMR).
 
 The wizard defaults to TypeScript, the detected package manager (npm otherwise), and Tailwind CSS. Pass `--yes` for those defaults or `--no-tailwind` to opt out.
 

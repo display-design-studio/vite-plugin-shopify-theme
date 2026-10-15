@@ -548,3 +548,97 @@ describe('inline stylesheet size limit', () => {
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('INLINE_CSS_TOO_LARGE'));
   });
 });
+
+describe('sync mode (build --watch)', () => {
+  async function watchTheme(root: string) {
+    const watcher = await build({ configFile: false, root, logLevel: 'silent', build: { watch: {} }, plugins: [shopifyTheme({ entries, themeRoot: root })] }) as any;
+    let waiting: Array<(code: string) => void> = [];
+    let failed = false;
+    watcher.on('event', (event: any) => {
+      if (event.result) void event.result.close();
+      if (event.code === 'ERROR') failed = true;
+      if (event.code === 'END') { const next = waiting; const code = failed ? 'ERROR' : 'END'; failed = false; waiting = []; for (const done of next) done(code); }
+    });
+    const settled = () => new Promise<string>((resolve) => { waiting.push(resolve); });
+    return { watcher, settled };
+  }
+  const assets = (root: string) => readdirSync(join(root, 'assets')).filter((file) => /-[\w-]{8}\.js$/.test(file));
+  const edit = async (root: string, settled: () => Promise<string>, source: string) => {
+    const next = settled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    writeFileSync(join(root, 'frontend/theme.ts'), source);
+    return next;
+  };
+
+  it('holds one lock, publishes each rebuild, and keeps earlier hashed assets', async () => {
+    const root = fixture();
+    const { watcher, settled } = await watchTheme(root);
+    expect(await settled()).toBe('END');
+    expect(JSON.parse(readFileSync(join(lockPath(root), 'owner.json'), 'utf8'))).toMatchObject({ mode: 'build', published: true });
+    const first = assets(root);
+    const firstSnippet = readFileSync(snippetPath(root), 'utf8');
+    expect(first).toHaveLength(1);
+
+    expect(await edit(root, settled, "console.log('changed')")).toBe('END');
+    const second = assets(root);
+    expect(second).toHaveLength(2);
+    expect(second).toEqual(expect.arrayContaining(first));
+    expect(readFileSync(snippetPath(root), 'utf8')).not.toBe(firstSnippet);
+    expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).toEqual(expect.arrayContaining(second));
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+    expect(existsSync(lockPath(root))).toBe(true);
+
+    await watcher.close();
+    expect(existsSync(lockPath(root))).toBe(false);
+    expect(existsSync(join(root, 'assets', second[0]))).toBe(true);
+  });
+
+  it('keeps the last working snippet through a failed compile and recovers', async () => {
+    const root = fixture();
+    const { watcher, settled } = await watchTheme(root);
+    await settled();
+    const working = readFileSync(snippetPath(root), 'utf8');
+
+    expect(await edit(root, settled, 'syntax error (')).toBe('ERROR');
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(working);
+    expect(existsSync(lockPath(root))).toBe(true);
+
+    expect(await edit(root, settled, "console.log('fixed')")).toBe('END');
+    expect(readFileSync(snippetPath(root), 'utf8')).not.toBe(working);
+    await watcher.close();
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('does not rewrite an unchanged snippet', async () => {
+    const root = fixture();
+    const { watcher, settled } = await watchTheme(root);
+    await settled();
+    const before = statSync(snippetPath(root)).mtimeMs;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(await edit(root, settled, "import './shared.css'; console.log('theme')")).toBe('END');
+    expect(statSync(snippetPath(root)).mtimeMs).toBe(before);
+    await watcher.close();
+  });
+
+  it('prunes only generations older than the retention window', async () => {
+    const root = fixture();
+    const { watcher, settled } = await watchTheme(root);
+    await settled();
+    const oldest = assets(root)[0];
+    for (let index = 0; index < 11; index += 1) await edit(root, settled, `console.log(${index})`);
+    expect(existsSync(join(root, 'assets', oldest))).toBe(false);
+    expect(assets(root)).toHaveLength(10);
+    expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).toEqual(expect.arrayContaining(assets(root)));
+    await watcher.close();
+  });
+
+  it('refuses to start while another process owns the theme root', async () => {
+    const root = fixture();
+    mkdirSync(lockPath(root));
+    writeFileSync(join(lockPath(root), 'owner.json'), JSON.stringify({ token: 'x', pid: process.pid, host: hostname(), mode: 'development', startedAt: new Date().toISOString() }));
+    const { watcher, settled } = await watchTheme(root);
+    expect(await settled()).toBe('ERROR');
+    await watcher.close();
+    expect(existsSync(lockPath(root))).toBe(true);
+  });
+});

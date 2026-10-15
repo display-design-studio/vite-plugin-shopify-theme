@@ -44,9 +44,13 @@ With `devOrigin` set, Vite is configured with:
 Pages served from a custom domain are not in the CORS allow list. If the editor loads your store through a custom domain and assets are blocked, use the build snapshot workflow below, or open the store through its `*.myshopify.com` address.
 :::
 
+## No tunnel: sync mode
+
+Run `npm run dev -- --sync`. Vite rebuilds on change, Shopify CLI uploads the hashed assets, and the editor loads them from Shopify. Adding a new Tailwind class to a Liquid file updates the editor without a restart or a tunnel. There is no HMR; each change takes a rebuild and an upload. See [Sync mode](../development-modes#sync-mode).
+
 ## Build snapshot alternative
 
-No tunnel needed: run `vite build`, then `shopify theme dev`. The editor uses uploaded hashed assets. Rebuild after source changes.
+Run `vite build`, then `shopify theme dev`. The editor uses uploaded hashed assets. Rebuild after source changes.
 
 ## If something is missing in the editor
 

@@ -26,12 +26,13 @@ The generated snippet is ordinary Liquid. Render each named entry where its load
 
 During `dev`, the generated snippet points at your local Vite server. The local preview (`127.0.0.1:9292`) can reach it, but the Theme Editor runs on an HTTPS Shopify origin, where browsers may block requests to `http://localhost`. If styles or scripts are missing only in the editor, check the browser console for blocked requests to the Vite origin.
 
-Choose one of two workflows:
+Choose one of three workflows:
 
+- **Sync mode (recommended for the editor).** Run `npm run dev -- --sync`. Vite rebuilds on change and Shopify CLI uploads the hashed assets, so the editor works without a tunnel or a manual build. There is no HMR; see [Sync mode](./development-modes#sync-mode).
 - **Build snapshot (default).** Run `vite build`, then `shopify theme dev` (for example a `"shopify:host": "vite build && shopify theme dev --host 0.0.0.0"` script). The built, hashed assets are uploaded to the development theme, so the editor does not depend on `localhost`. The build is a snapshot: after changing source (including new Tailwind classes) rebuild and restart to see the result in the editor.
 - **Live editor with a tunnel.** Route an HTTPS tunnel to Vite and set `devOrigin` (see [External tunnels](#external-tunnels)). The editor then loads live assets with HMR and no rebuild.
 
-`vite build --watch` is not a supported workflow.
+Running `vite build --watch` by yourself is not supported; `dev --sync` runs it with the lifecycle, ownership and cleanup the plugin needs.
 
 Theme App Extensions have their own Shopify build and deployment lifecycle. Use this plugin only when the extension layout exposes an appropriate theme-like asset/snippet boundary; do not redirect an extension build into a production theme's ownership state.
 
