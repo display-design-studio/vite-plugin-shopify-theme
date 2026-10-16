@@ -34,7 +34,7 @@ The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. R
 
 ## `dev:editor` or `vite build --watch` rebuilds again and again
 
-Tailwind CSS v4 scans every project file that `.gitignore` does not exclude and watches what it finds. The plugin rewrites generated files on every build (`assets/vite-manifest.json`, `.vite-shopify-theme.json`, hashed assets), so Tailwind sees a change and starts another build. A log that repeats `built in ...` many times per second is the sign. `init` writes the ignore patterns that stop it; add them yourself when you set up without `init`:
+Tailwind CSS v4 scans every project file that `.gitignore` does not exclude and watches what it finds. Every build rewrites generated files: Vite writes the hashed assets and `assets/vite-manifest.json` even when their content is unchanged, and the plugin updates its lock and ownership state. Tailwind sees the change and starts another build. The hashed assets matter most; ignore all of the files below. A log that repeats `built in ...` many times per second is the sign. `init` writes the ignore patterns that stop it; add them yourself when you set up without `init`:
 
 ```gitignore
 .vite-shopify-theme.json
