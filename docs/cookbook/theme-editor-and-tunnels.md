@@ -18,6 +18,24 @@ Things to know:
 - Right after a change the page can briefly render without styles because Shopify CLI uploads files in no fixed order. Reload if it does not settle.
 - Set your store in `shopify.theme.toml` so Shopify CLI does not ask for it, as for `dev`. See [Development modes](../development-modes#editor-mode).
 
+### Why editor mode is not the default
+
+`npm run dev` stays on HMR, and editor mode is opt-in, for these reasons:
+
+- **Speed.** HMR updates the local preview instantly and uploads nothing. Editor mode rebuilds and uploads on every change, about 1-2 seconds plus a full-page reload.
+- **Shared remote theme.** Every change is written to your Shopify development theme. Shopify CLI keeps one development theme per store on your machine, so every project on that store shares it.
+- **Upload order.** Shopify CLI does not guarantee the order of uploads, so a page can briefly render without styles right after a change.
+- **Less proven.** Editor mode is newer than HMR. It has been verified with npm and bun on macOS, not yet with pnpm, Yarn, or Windows, nor under many rapid edits.
+- **Compatibility.** Making it the default would change what `npm run dev` does in existing projects.
+
+Use `dev` for day-to-day work in the local preview and `dev:editor` when you edit in the Theme Editor. If your team works mostly in the editor, make it your default in `package.json`:
+
+```json
+"scripts": { "dev": "vite-shopify-theme dev --editor" }
+```
+
+The default may change once editor mode has seen wider use.
+
 ## Alternative: HMR through a tunnel
 
 Use this when you need instant HMR inside the editor and are willing to manage a tunnel. Route an HTTPS tunnel to Vite and tell the plugin its public origin. The plugin does not create or stop the tunnel.

@@ -14,6 +14,8 @@ Choose a mode by where you work:
 | `dev --editor` | About 1-2 seconds, full-page reload | Yes, no tunnel | About 1-2 seconds, plus upload |
 | `vite build`, then `shopify theme dev` | Snapshot | Snapshot | Rebuild by hand |
 
+The default stays `dev` (HMR); see [why editor mode is opt-in](./cookbook/theme-editor-and-tunnels#why-editor-mode-is-not-the-default).
+
 How it behaves:
 
 - Assets keep content-hashed names. The plugin holds one ownership lock for the whole session and writes the snippet shortly after the assets it references.
