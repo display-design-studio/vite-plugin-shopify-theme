@@ -13,6 +13,7 @@ All notable changes to this package are documented here.
 
 - Corrected how to reference manual `assets/` files from CSS: URLs in a partial in a subfolder need the `../` path to the entry's folder, otherwise the built stylesheet points to a folder that does not exist.
 - Added a troubleshooting entry for endless rebuilds under `dev:editor` and `vite build --watch` when `.gitignore` lacks the generated-file patterns that `init` writes. The entry states that the hashed assets are what retrigger the build.
+- Documented that npm 10.8.2, bundled with Node.js 20.19.0, cannot install Vite 8.2 or newer (`edgesOut` error, upstream npm bug), and how to avoid it. The compatibility matrix upgrades npm for that one job.
 
 ## 0.6.0
 
