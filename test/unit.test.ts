@@ -63,9 +63,11 @@ describe('setup CLI', () => {
     const invalid = mkdtempSync(join(tmpdir(), 'shopify-theme-invalid-'));
     await expect(initialize({ yes: true, directory: invalid }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('Not a Shopify theme');
     const root = theme();
-    writeFileSync(join(root, 'vite.config.ts'), 'manual\n');
+    mkdirSync(join(root, 'frontend/entrypoints'), { recursive: true });
+    writeFileSync(join(root, 'frontend/entrypoints/theme.css'), 'manual\n');
     await expect(initialize({ yes: true, directory: root }, { version: '0.4.0', cwd: '/', run: vi.fn() })).rejects.toThrow('Refusing to overwrite');
     expect(existsSync(join(root, 'frontend/entrypoints/theme.ts'))).toBe(false);
+    expect(existsSync(join(root, 'vite.config.ts'))).toBe(false);
   });
 
   it('creates a missing target through Shopify before setup', async () => {
@@ -166,6 +168,44 @@ describe('setup CLI', () => {
     });
     expect(run.mock.calls[0][0]).toBe('yarn');
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an existing Vite setup and only adds the plugin, ignore patterns, and guidance', async () => {
+    const root = theme();
+    const config = "import { defineConfig } from 'vite';\nexport default defineConfig({ publicDir: 'public' });\n";
+    const layout = "<html><head>{% render 'vite-tag' with 'main.css' %}</head><body>{% render 'vite-tag' with 'main.js' %}</body></html>\n";
+    mkdirSync(join(root, 'frontend/entrypoints'), { recursive: true });
+    writeFileSync(join(root, 'frontend/entrypoints/main.css'), 'body {}\n');
+    writeFileSync(join(root, 'vite.config.js'), config);
+    writeFileSync(join(root, 'layout/theme.liquid'), layout);
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module', scripts: { dev: 'run-p vite:dev shopify:dev', build: 'tsc && vite build' }, devDependencies: { vite: '^8.3.1' } }));
+    const run = vi.fn();
+    const logs: string[] = [];
+    const result = await initialize({ yes: true, directory: root, packageManager: 'bun' }, { version: '0.6.0', cwd: '/', run, log: (message) => logs.push(message) });
+    expect(result.adopted).toBe(true);
+    expect(readFileSync(join(root, 'vite.config.js'), 'utf8')).toBe(config);
+    expect(existsSync(join(root, 'vite.config.ts'))).toBe(false);
+    expect(existsSync(join(root, 'frontend/entrypoints/theme.css'))).toBe(false);
+    expect(existsSync(join(root, 'frontend/entrypoints/theme.ts'))).toBe(false);
+    expect(readFileSync(join(root, 'layout/theme.liquid'), 'utf8')).toBe(layout);
+    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    expect(manifest.scripts).toEqual({ 'dev:editor': 'vite-shopify-theme dev --editor', dev: 'run-p vite:dev shopify:dev', build: 'tsc && vite build' });
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toContain('assets/*-????????.js');
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0][1]).toEqual(['add', '--dev', '@display-studio/vite-plugin-shopify-theme@0.6.0']);
+    const output = logs.join('\n');
+    expect(output).toContain('Found an existing Vite config');
+    expect(output).toContain('Package script "dev" was left unchanged: run-p vite:dev shopify:dev');
+    expect(output).toContain('Package script "build" was left unchanged: tsc && vite build');
+    expect(output).toContain("entry: 'theme.css'");
+  });
+
+  it('installs Vite for an existing config when the project does not declare it', async () => {
+    const root = theme();
+    writeFileSync(join(root, 'vite.config.mjs'), 'export default {};\n');
+    const run = vi.fn();
+    await initialize({ yes: true, directory: root, packageManager: 'npm' }, { version: '0.6.0', cwd: '/', run, log: vi.fn() });
+    expect(run.mock.calls[0][1]).toEqual(['install', '--save-dev', 'vite@^8.0.0', '@display-studio/vite-plugin-shopify-theme@0.6.0']);
   });
 
   it('adds only missing layout tags and preserves existing markup', async () => {

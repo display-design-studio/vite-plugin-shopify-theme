@@ -38,6 +38,17 @@ function detectedManager(root: string): PackageManager {
   return 'npm';
 }
 
+const viteConfigNames = ['js', 'mjs', 'cjs', 'ts', 'mts', 'cts'].map((extension) => `vite.config.${extension}`);
+
+// A project that already owns a Vite config keeps it: setup would otherwise add unused entries and change files it does not own.
+// A config that setup generated earlier is not "owned", so reruns stay idempotent.
+function hasOwnViteConfig(root: string, generated: Map<string, string>) {
+  return viteConfigNames.some((name) => {
+    const path = join(root, name);
+    return existsSync(path) && readFileSync(path, 'utf8') !== generated.get(name);
+  });
+}
+
 function validTheme(root: string) {
   return ['assets', 'layout', 'snippets'].every((name) => {
     const path = join(root, name);
@@ -160,10 +171,13 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   }
   if (!validTheme(root)) throw new Error(`Not a Shopify theme: ${root}. Expected assets, layout, and snippets directories; no files were changed.`);
 
-  const language: Language = options.language ?? (options.yes ? 'ts' : await select<Language>('Language', ['ts', 'js'], 'ts'));
+  const existingConfig = viteConfigNames.some((name) => existsSync(join(root, name)));
+  const language: Language = options.language ?? (options.yes || existingConfig ? 'ts' : await select<Language>('Language', ['ts', 'js'], 'ts'));
   const packageManager = options.packageManager ?? (options.yes ? detectedManager(root) : await select('Package manager', managers, detectedManager(root)));
-  const tailwind = options.tailwind ?? (options.yes ? true : await confirm('Add Tailwind CSS?', true));
-  if (!options.yes && !await confirm(`Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}?`, true)) {
+  const tailwind = options.tailwind ?? (options.yes || existingConfig ? true : await confirm('Add Tailwind CSS?', true));
+  const adopted = existingConfig && hasOwnViteConfig(root, desiredFiles(language, tailwind));
+  const summary = adopted ? `Add the plugin to ${root} and keep its Vite config, entries, and layouts, using ${packageManager}?` : `Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}?`;
+  if (!options.yes && !await confirm(summary, true)) {
     log('Setup cancelled.');
     return { root, cancelled: true };
   }
@@ -171,19 +185,35 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   const files = desiredFiles(language, tailwind);
   const packagePath = join(root, 'package.json');
   const manifest = existsSync(packagePath) ? JSON.parse(readFileSync(packagePath, 'utf8')) : { name: basename(root), private: true };
-  for (const [name, expected] of Object.entries({ build: 'vite build', dev: 'vite-shopify-theme dev' })) {
-    if (manifest.scripts?.[name] && manifest.scripts[name] !== expected) throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
+  const expectedScripts = { build: 'vite build', dev: 'vite-shopify-theme dev' };
+  const notes: string[] = [];
+  if (!adopted) {
+    for (const [name, expected] of Object.entries(expectedScripts)) {
+      if (manifest.scripts?.[name] && manifest.scripts[name] !== expected) throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
+    }
+    if (manifest.type && manifest.type !== 'module') throw new Error(`Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`);
   }
-  if (manifest.type && manifest.type !== 'module') throw new Error(`Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`);
-  const nextManifest = { ...manifest, type: 'module', scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts, build: 'vite build', dev: 'vite-shopify-theme dev' } };
-  for (const [relative, contents] of files) {
-    const path = join(root, relative);
-    if (existsSync(path) && readFileSync(path, 'utf8') !== contents) throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);
+  const nextManifest = adopted
+    ? { ...manifest, scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts } }
+    : { ...manifest, type: 'module', scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts, ...expectedScripts } };
+  if (adopted) {
+    for (const [name, expected] of Object.entries(expectedScripts)) {
+      if (manifest.scripts?.[name] !== expected) notes.push(`Package script "${name}" was left unchanged${manifest.scripts?.[name] ? `: ${manifest.scripts[name]}` : ' (not defined)'}. Use "${expected}" to run the plugin.`);
+    }
+    notes.push("Add the plugin to your Vite config with one explicit entry per file that Liquid renders: shopify({ entries: { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.js': 'frontend/entrypoints/theme.js' } }).");
+    notes.push("Render the generated snippet in your layouts: {% render 'vite-tag' %} once in <head>, then {% render 'vite-tag', entry: 'theme.css' %} and {% render 'vite-tag', entry: 'theme.js' %}. The entry name is the key from `entries`.");
+    notes.push('Remove `publicDir` from the Vite config and move files from public/ to assets/ (see the cookbook page on static files). Vite 8 is required.');
   }
-  for (const [relative, contents] of files) {
-    const path = join(root, relative);
-    mkdirSync(dirname(path), { recursive: true });
-    if (!existsSync(path)) writeFileSync(path, contents);
+  if (!adopted) {
+    for (const [relative, contents] of files) {
+      const path = join(root, relative);
+      if (existsSync(path) && readFileSync(path, 'utf8') !== contents) throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);
+    }
+    for (const [relative, contents] of files) {
+      const path = join(root, relative);
+      mkdirSync(dirname(path), { recursive: true });
+      if (!existsSync(path)) writeFileSync(path, contents);
+    }
   }
   // Placeholder so the layout's render never fails before the first dev/build; both overwrite and later restore it.
   const snippetPath = join(root, 'snippets/vite-tag.liquid');
@@ -200,20 +230,23 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
 
   const layoutPath = join(root, 'layout/theme.liquid');
   let layoutInstructions: string | undefined;
-  if (existsSync(layoutPath)) {
+  if (!adopted && existsSync(layoutPath)) {
     const current = readFileSync(layoutPath, 'utf8');
     const next = patchedLayout(current, language);
     if (next === undefined) layoutInstructions = `Add {% render 'vite-tag' %} and {% render 'vite-tag', entry: 'theme.css' %} before </head>, then {% render 'vite-tag', entry: 'theme.${language}' %} before </body>.`;
     else if (next !== current) writeFileSync(layoutPath, next);
   }
 
-  const packages = ['vite@^8.0.0', `@display-studio/vite-plugin-shopify-theme@${runtime.version}`];
-  if (language === 'ts') packages.push('typescript');
-  if (tailwind) packages.push('tailwindcss', '@tailwindcss/vite');
+  const declared = { ...manifest.dependencies, ...manifest.devDependencies };
+  const packages = [`@display-studio/vite-plugin-shopify-theme@${runtime.version}`];
+  if (!adopted || !declared.vite) packages.unshift('vite@^8.0.0');
+  if (!adopted && language === 'ts') packages.push('typescript');
+  if (!adopted && tailwind) packages.push('tailwindcss', '@tailwindcss/vite');
   const [command, args] = installCommand(packageManager, packages);
   run(command, [...args], root);
   if (layoutInstructions) log(layoutInstructions);
+  if (adopted) log(`Found an existing Vite config, so it, your entries, and your layouts were not changed.\n${notes.map((note) => `- ${note}`).join('\n')}`);
   log(`Configured Shopify theme at ${root}`);
   if (!existsSync(join(root, 'shopify.theme.toml'))) log('Next: copy example.shopify.theme.toml to shopify.theme.toml and set your store; `dev` then runs `shopify theme dev --environment development`.');
-  return { root, cancelled: false, layoutInstructions };
+  return { root, cancelled: false, layoutInstructions, adopted };
 }
