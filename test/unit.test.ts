@@ -6,7 +6,8 @@ import { collectManifestTags, developmentSnippet, normalizeOptions, productionSn
 import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
-import { runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
+import { describeTarget, runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
+import { formatFooter, formatHeader, outputStyle } from '../src/cli/output.js';
 import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
 
@@ -780,5 +781,122 @@ describe('entry options rendering', () => {
     const plain = renderProductionSnippet(manifest, entries, root, { modulePreload: true });
     const explicit = renderProductionSnippet(manifest, entries, root, { modulePreload: true, entryOptions: { 'theme.css': { attributes: {}, inline: false }, 'theme.ts': { attributes: {}, inline: false } } });
     expect(explicit).toBe(plain);
+  });
+});
+
+describe('terminal output', () => {
+  const plain = { color: false };
+  const colored = { color: true };
+  const strip = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, '');
+  const header = { version: '0.7.0', mode: 'hmr', vite: '8.3.4', node: 'v26.12.0', shopify: '4.9.3', store: 'shop.myshopify.com', environment: 'development' } as const;
+
+  it('uses color only on an interactive terminal without NO_COLOR, CI, or a dumb terminal', () => {
+    expect(outputStyle({}, true).color).toBe(true);
+    expect(outputStyle({}, false).color).toBe(false);
+    expect(outputStyle({ NO_COLOR: '1' }, true).color).toBe(false);
+    expect(outputStyle({ CI: 'true' }, true).color).toBe(false);
+    expect(outputStyle({ TERM: 'dumb' }, true).color).toBe(false);
+  });
+
+  it('formats the header as plain text and the same text with color', () => {
+    const text = formatHeader(header, plain);
+    expect(text).toBe('vite-shopify-theme 0.7.0 · HMR\n  versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0\n  store     shop.myshopify.com (environment: development)\n\n');
+    expect(strip(formatHeader(header, colored))).toBe(text);
+    expect(formatHeader(header, colored)).toContain('\x1b[');
+    expect(text).not.toContain('\x1b[');
+  });
+
+  it('shows the editor asset row with the live-reload mode and omits unknown values', () => {
+    const text = formatHeader({ version: '0.7.0', mode: 'editor', vite: '8.3.4', node: 'v26.12.0', liveReload: 'off' }, plain);
+    expect(text).toBe('vite-shopify-theme 0.7.0 · editor\n  versions  Vite 8.3.4 · Node 26.12.0\n  assets    built to assets/ · synced by Shopify CLI · live reload: off\n\n');
+    expect(formatHeader({ version: '0.7.0', mode: 'editor', vite: '8.3.4', node: 'v26.12.0' }, plain)).toContain('live reload: full-page');
+  });
+
+  it('formats the footer for each way the session can end', () => {
+    expect(formatFooter({ mode: 'hmr', lockRemains: false }, plain)).toBe('\nStopped. Development snippet restored.\n');
+    expect(formatFooter({ mode: 'editor', lockRemains: false }, plain)).toBe('\nStopped. Generated snippet kept; run vite build before deploying.\n');
+    expect(formatFooter({ mode: 'hmr', lockRemains: true, exitCode: 1 }, plain)).toContain('Stopped (exit code 1). A lock remains in .vite-shopify-theme.lock');
+  });
+
+  it('reads the store and environment from flags, environment variables, or shopify.theme.toml', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-target-'));
+    writeFileSync(join(root, 'shopify.theme.toml'), '[environments.staging]\nstore = "staging.myshopify.com"\n[environments.development]\ntheme = 1\nstore = "dev.myshopify.com" # local\n');
+    expect(describeTarget(root, ['theme', 'dev', '--environment', 'development'], {})).toEqual({ store: 'dev.myshopify.com', environment: 'development' });
+    expect(describeTarget(root, ['theme', 'dev', '-e', 'staging'], {})).toEqual({ store: 'staging.myshopify.com', environment: 'staging' });
+    expect(describeTarget(root, ['theme', 'dev', '--store=flag.myshopify.com'], {})).toEqual({ store: 'flag.myshopify.com' });
+    expect(describeTarget(root, ['theme', 'dev'], { SHOPIFY_FLAG_STORE: 'env.myshopify.com' })).toEqual({ store: 'env.myshopify.com' });
+    expect(describeTarget(mkdtempSync(join(tmpdir(), 'shopify-theme-target-')), ['theme', 'dev'], {})).toEqual({});
+  });
+
+  function session(argumentsList: string[], options: { lock?: boolean; version?: string | undefined } = {}) {
+    const events: string[] = [];
+    const children: any[] = [];
+    const spawn = ((command: string) => {
+      events.push(`spawn:${command === process.execPath ? 'vite' : command}`);
+      const child = Object.assign(new EventEmitter(), { killed: false, kill: vi.fn(function (this: any) { this.killed = true; }) });
+      children.push(child);
+      return child;
+    }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-session-'));
+    writeFileSync(join(root, 'shopify.theme.toml'), '[environments.development]\nstore = "dev.myshopify.com"\n');
+    if (options.lock) mkdirSync(join(root, '.vite-shopify-theme.lock'));
+    const signals = new Map<string, () => void>();
+    const result = runDevelopment(argumentsList, {
+      cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: (signal, handler) => signals.set(signal, handler),
+      write: (text) => events.push(`write:${text}`), env: {}, isTTY: false, ...('version' in options ? { version: options.version } : { version: '0.7.0' }),
+    });
+    return { events, children, result, signals };
+  }
+
+  it('prints the header before anything starts and the footer after both processes exit', async () => {
+    const { events, children, result, signals } = session([]);
+    expect(events[0]).toMatch(/^write:vite-shopify-theme 0\.7\.0 · HMR\n {2}versions {2}Vite \d/);
+    expect(events[0]).toContain('store     dev.myshopify.com (environment: development)');
+    expect(events[1]).toBe('spawn:vite');
+    await result.started;
+    signals.get('SIGINT')?.();
+    children[0].emit('exit', 0, null);
+    expect(events.some((event) => event.startsWith('write:\nStopped.'))).toBe(false);
+    children[1].emit('exit', null, 'SIGINT');
+    expect(events.filter((event) => event.startsWith('write:\nStopped.'))).toHaveLength(1);
+    expect(events.at(-1)).toContain('Development snippet restored.');
+    process.exitCode = undefined;
+  });
+
+  it('does not report an exit code for a stop the user asked for, but does when a process fails on its own', async () => {
+    const stopped = session([]);
+    await stopped.result.started;
+    stopped.signals.get('SIGINT')?.();
+    stopped.children[0].emit('exit', null, 'SIGINT');
+    stopped.children[1].emit('exit', null, 'SIGINT');
+    expect(stopped.events.at(-1)).toBe('write:\nStopped. Development snippet restored.\n');
+    process.exitCode = undefined;
+    const failed = session([]);
+    await failed.result.started;
+    failed.children[0].emit('exit', 2, null);
+    failed.children[1].emit('exit', null, 'SIGTERM');
+    expect(failed.events.at(-1)).toContain('Stopped (exit code 2).');
+    process.exitCode = undefined;
+  });
+
+  it('reports a remaining lock in the footer', async () => {
+    const { events, children, result, signals } = session(['--editor'], { lock: true });
+    await result.started;
+    signals.get('SIGTERM')?.();
+    for (const child of children) child.emit('exit', 0, null);
+    expect(events.at(-1)).toContain('A lock remains in .vite-shopify-theme.lock');
+    process.exitCode = undefined;
+  });
+
+  it('prints nothing of its own with --raw or without a version', async () => {
+    const raw = session(['--raw', '--host']);
+    await raw.result.started;
+    raw.signals.get('SIGINT')?.();
+    for (const child of raw.children) child.emit('exit', 0, null);
+    expect(raw.events.filter((event) => event.startsWith('write:'))).toEqual([]);
+    const quiet = session([], { version: undefined });
+    await quiet.result.started;
+    expect(quiet.events.filter((event) => event.startsWith('write:'))).toEqual([]);
+    process.exitCode = undefined;
   });
 });

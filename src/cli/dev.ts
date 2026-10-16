@@ -3,12 +3,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
+import { formatFooter, formatHeader, outputStyle } from './output.js';
 
 export interface DevRuntime {
   cwd?: string;
   platform?: NodeJS.Platform;
   spawn?: typeof spawn;
   onSignal?: (signal: NodeJS.Signals, handler: () => void) => void;
+  /** Plugin version shown in the header; the header is skipped when it is not provided. */
+  version?: string;
+  /** Where header and footer go; defaults to stdout. */
+  write?: (text: string) => void;
+  env?: NodeJS.ProcessEnv;
+  isTTY?: boolean;
   /** Resolves true once Vite has written the development snippet; false when it did not in time. */
   ready?: (vite: ChildProcess, cwd: string, closed: () => boolean) => Promise<boolean>;
 }
@@ -36,11 +43,45 @@ const buildReady = (vite: ChildProcess, cwd: string, closed: () => boolean) => w
 const environmentConfig = 'shopify.theme.toml';
 const developmentEnvironment = /^\s*\[environments\.(?:development|"development")\]\s*(?:#.*)?$/m;
 
-/** Arguments before `--` go to Vite (except `--editor`); arguments after it go to `shopify theme dev`. */
+/** Arguments before `--` go to Vite (except `--editor` and `--raw`); arguments after it go to `shopify theme dev`. */
 export function splitDevelopmentArguments(arguments_: string[]) {
   const separator = arguments_.indexOf('--');
   const before = separator === -1 ? arguments_ : arguments_.slice(0, separator);
-  return { vite: before.filter((argument) => argument !== '--editor'), shopify: separator === -1 ? [] as string[] : arguments_.slice(separator + 1), editor: before.includes('--editor') };
+  return { vite: before.filter((argument) => argument !== '--editor' && argument !== '--raw'), shopify: separator === -1 ? [] as string[] : arguments_.slice(separator + 1), editor: before.includes('--editor'), raw: before.includes('--raw') };
+}
+
+function flagValue(arguments_: string[], names: string[]): string | undefined {
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index]!;
+    const inline = names.find((name) => argument.startsWith(`${name}=`));
+    if (inline) return argument.slice(inline.length + 1);
+    if (names.includes(argument) && arguments_[index + 1] !== undefined) return arguments_[index + 1];
+  }
+  return undefined;
+}
+
+/** The store and environment Shopify CLI will use, read the same way the command selects the environment. */
+export function describeTarget(cwd: string, themeArguments: string[], env: NodeJS.ProcessEnv = process.env): { store?: string; environment?: string } {
+  const environment = flagValue(themeArguments, ['--environment', '-e']) ?? env.SHOPIFY_FLAG_ENVIRONMENT;
+  let store = flagValue(themeArguments, ['--store', '-s']) ?? env.SHOPIFY_FLAG_STORE;
+  const file = join(cwd, environmentConfig);
+  if (!store && environment && existsSync(file)) {
+    let inside = false;
+    for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const table = /^\s*\[(.+?)\]\s*(?:#.*)?$/.exec(line);
+      if (table) { inside = table[1]!.replace(/"/g, '').trim() === `environments.${environment}`; continue; }
+      const match = inside ? /^\s*store\s*=\s*["']([^"']+)["']/.exec(line) : null;
+      if (match) { store = match[1]; break; }
+    }
+  }
+  return { ...(store ? { store } : {}), ...(environment ? { environment } : {}) };
+}
+
+function shopifyCliVersion(cwd: string): string | undefined {
+  try {
+    const local = createRequire(join(cwd, 'package.json')).resolve('@shopify/cli/package.json');
+    return JSON.parse(readFileSync(local, 'utf8')).version;
+  } catch { return undefined; }
 }
 
 /**
@@ -61,13 +102,20 @@ function shellQuote(argument: string): string {
 }
 
 export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
-  const { vite: viteArguments, shopify: shopifyArguments, editor } = splitDevelopmentArguments(arguments_);
+  const { vite: viteArguments, shopify: shopifyArguments, editor, raw } = splitDevelopmentArguments(arguments_);
   const cwd = resolve(runtime.cwd ?? process.cwd());
   const spawnProcess = runtime.spawn ?? spawn;
   const platform = runtime.platform ?? process.platform;
+  const env = runtime.env ?? process.env;
+  const write = runtime.write ?? ((text: string) => { process.stdout.write(text); });
   const require = createRequire(import.meta.url);
   const vitePackage = require.resolve('vite/package.json');
-  const viteBin = join(dirname(vitePackage), JSON.parse(readFileSync(vitePackage, 'utf8')).bin.vite);
+  const viteManifest = JSON.parse(readFileSync(vitePackage, 'utf8'));
+  const viteBin = join(dirname(vitePackage), viteManifest.bin.vite);
+  const themeArguments = shopifyThemeArguments(cwd, shopifyArguments, env, editor);
+  const style = outputStyle(env, runtime.isTTY ?? Boolean(process.stdout.isTTY));
+  // Everything the header shows is already known here, so printing it adds no waiting before the first spawn.
+  if (!raw && runtime.version) write(formatHeader({ version: runtime.version, mode: editor ? 'editor' : 'hmr', vite: viteManifest.version, node: process.version, shopify: shopifyCliVersion(cwd), ...describeTarget(cwd, themeArguments, env), liveReload: flagValue(themeArguments, ['--live-reload']) }, style));
   // Editor mode builds and syncs hashed assets instead of serving them from the dev server.
   const vite = spawnProcess(process.execPath, [viteBin, ...(editor ? ['build', '--watch'] : []), ...viteArguments], { cwd, stdio: 'inherit' });
   const children: ChildProcess[] = [vite];
@@ -78,10 +126,20 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     for (const child of children) if (!child.killed) child.kill(signal);
   };
   const listen = runtime.onSignal ?? ((signal, handler) => process.once(signal, handler));
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) listen(signal, () => close(signal));
+  let stopRequested = false;
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) listen(signal, () => { stopRequested = true; close(signal); });
+  const alive = new Set<ChildProcess>();
+  let footerPrinted = false;
+  const finish = (child: ChildProcess) => {
+    alive.delete(child);
+    if (raw || !runtime.version || footerPrinted || alive.size > 0 || !closing) return;
+    footerPrinted = true;
+    write(formatFooter({ mode: editor ? 'editor' : 'hmr', lockRemains: existsSync(join(cwd, '.vite-shopify-theme.lock')), exitCode: !stopRequested && typeof process.exitCode === 'number' ? process.exitCode : undefined }, style));
+  };
   const watch = (child: ChildProcess) => {
-    child.once('error', (error) => { console.error(error.message); process.exitCode = 1; close(); });
-    child.once('exit', (code, signal) => { process.exitCode ??= code ?? (signal ? 1 : 0); close(signal ?? 'SIGTERM'); });
+    alive.add(child);
+    child.once('error', (error) => { console.error(error.message); process.exitCode = 1; close(); finish(child); });
+    child.once('exit', (code, signal) => { process.exitCode ??= code ?? (signal ? 1 : 0); close(signal ?? 'SIGTERM'); finish(child); });
   };
   watch(vite);
   // Shopify CLI snapshots local files at startup, so it must start after the snippet (and, in editor mode, the first build) exists.
@@ -89,10 +147,9 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     const ready = await (runtime.ready ?? (editor ? buildReady : snippetReady))(vite, cwd, () => closing);
     if (closing) return;
     if (!ready) console.warn(`vite-shopify-theme: Vite did not write the ${editor ? 'first build' : 'development snippet'} within ${(editor ? editorReadyTimeout : readyTimeout) / 1000}s; starting Shopify CLI anyway.`);
-    const themeArguments = shopifyThemeArguments(cwd, shopifyArguments, process.env, editor);
     const shopify = platform === 'win32'
-      ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env: process.env, stdio: 'inherit', shell: true })
-      : spawnProcess('shopify', themeArguments, { cwd, env: process.env, stdio: 'inherit' });
+      ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env, stdio: 'inherit', shell: true })
+      : spawnProcess('shopify', themeArguments, { cwd, env, stdio: 'inherit' });
     children.push(shopify);
     watch(shopify);
   })();
