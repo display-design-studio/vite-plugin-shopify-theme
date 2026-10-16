@@ -62,7 +62,7 @@ A failed build keeps showing Vite's own error above this line.
 
 ### Footer
 
-Printed after both processes exit, naming what was left behind: `Stopped. Development snippet restored.` in HMR mode, `Stopped. Generated snippet kept; run vite build before deploying.` in editor mode (see "What editor mode leaves behind"). The exit code is unchanged.
+Printed after both processes exit, naming what was left behind: `Stopped. Development snippet restored.` in HMR mode, `Stopped. Generated snippet kept; run vite build before deploying.` in editor mode (see the Editor mode section of `docs/development-modes.md`: stopping keeps the generated build snippet and the last two builds in `assets/`). The exit code is unchanged.
 
 ### Preflight hints (second phase)
 
