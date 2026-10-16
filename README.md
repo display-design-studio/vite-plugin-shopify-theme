@@ -9,7 +9,7 @@ A zero-runtime-dependency Vite 8 plugin and setup CLI for explicit Shopify theme
 
 ## Requirements
 
-- Node.js `^20.19.0 || >=22.12.0`
+- Node.js `^20.19.0 || >=22.12.0` (on Node.js 20.19.0, upgrade npm first; see [Support and Compatibility](docs/support-compatibility.md))
 - Shopify CLI installed as `shopify`
 - Vite `^8.0.0` (installed by `init`)
 

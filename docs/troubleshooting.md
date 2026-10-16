@@ -1,5 +1,9 @@
 # Troubleshooting
 
+## `Cannot read properties of null (reading 'edgesOut')` while installing Vite
+
+This is a bug in npm 10.8.2, the npm bundled with Node.js 20.19.0, and it happens with Vite 8.2 or newer even without this plugin ([npm/cli#9787](https://github.com/npm/cli/issues/9787)). Run `npm install --global npm@11` and retry, or use pnpm, Yarn, or Bun. See [Support and Compatibility](./support-compatibility#node-js-20-19-0-and-npm).
+
 ## `shopify` was not found
 
 Install Shopify CLI globally and confirm `shopify version` works.
