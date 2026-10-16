@@ -18,6 +18,30 @@ Reference them with a relative path or alias inside the stylesheet. Vite emits t
 
 Small files can be inlined by Vite (`build.assetsInlineLimit`). Set it to `0` to always emit files. Source maps (`build.sourcemap`) are emitted as `.map` files in `assets` and recorded as plugin-owned.
 
+## Static files: `assets/`, not `public/`
+
+Vite's `public/` directory is turned off: the plugin sets `publicDir: false`, and setting it yourself fails with `CONFIG_VITE_CONFLICT`. A `public/` folder is ignored. Choose by whether you want a content hash.
+
+| You want | Do this | Result |
+| --- | --- | --- |
+| A hashed file the plugin manages | Keep it in `frontend/` and reference it from CSS (`url('../images/icon.svg')`) or import it from JavaScript | Emitted to `assets/` with a content hash and recorded as plugin-owned, so it is cleaned up when it is no longer used |
+| A stable file name | Put the file in the theme's `assets/` folder yourself | Never touched or deleted by the plugin; no hash |
+
+Files under `build.assetsInlineLimit` (4 KiB by default) are inlined as data URIs instead of emitted, so a small icon may not appear in `assets/`. Set the limit to `0` to always emit files.
+
+Using a manual file from Liquid is the usual Shopify way: `{{ 'icon.svg' | asset_url }}`. Using one from CSS works with the file name alone:
+
+```css
+.icon { background-image: url('icon.svg'); }
+```
+
+Vite cannot find `icon.svg` next to your source, so it prints `didn't resolve at build time, it will remain unchanged` and keeps the URL. The built stylesheet is served from the same `assets/` folder as your file, so the browser resolves it correctly. This is expected and verified on a Shopify store. Two forms to avoid:
+
+- `url('/icon.svg')` is left as an absolute path on your store domain, which does not exist.
+- `url('../../assets/icon.svg')` makes Vite copy the file to a hashed name, leaving a duplicate in `assets/`.
+
+A manual file has no content hash, so Shopify's own asset caching decides when a changed file is picked up. Rename the file when its contents must change immediately.
+
 ## Images used in Liquid
 
 Keep Shopify-managed images in the theme as usual (`assets` files you add manually or `image_url` for uploaded media). Only import images from JavaScript or CSS when the bundle needs them.
