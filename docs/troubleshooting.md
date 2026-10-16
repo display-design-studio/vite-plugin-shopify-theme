@@ -32,6 +32,18 @@ Do not delete ownership state before investigating. Confirm that the filename is
 
 The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. Run `npm run dev:editor`, which syncs hashed assets to Shopify and needs no tunnel (see [Development modes](./development-modes#editor-mode)), or use an HTTPS tunnel with `devOrigin`; see [Live Theme Editor](./cookbook/theme-editor-and-tunnels). Pages served from a custom storefront domain are not in the development CORS allow list.
 
+## `dev:editor` or `vite build --watch` rebuilds again and again
+
+Tailwind CSS v4 scans every project file that `.gitignore` does not exclude and watches what it finds. The plugin rewrites generated files on every build (`assets/vite-manifest.json`, `.vite-shopify-theme.json`, hashed assets), so Tailwind sees a change and starts another build. A log that repeats `built in ...` many times per second is the sign. `init` writes the ignore patterns that stop it; add them yourself when you set up without `init`:
+
+```gitignore
+.vite-shopify-theme.json
+.vite-shopify-theme.lock
+assets/vite-manifest.json
+assets/*-????????.css
+assets/*-????????.js
+```
+
 ## The generated snippet is close to Shopify's size limit
 
 `SNIPPET_SIZE_NEAR_LIMIT` is a warning emitted when the generated snippet reaches about 75% of Shopify's 256 kB theme file limit. It grows with the number of entries and their module preloads. Reduce the number of entries, move optional code behind dynamic `import()`, or set `build.modulePreload: false`.
