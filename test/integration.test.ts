@@ -192,6 +192,34 @@ describe('isolated builds', () => {
     expect(statSync(snippetPath(root)).mtimeMs).toBe(past.getTime());
   });
 
+  it('names entry scripts without the key extension and cleans the old double-extension file', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'assets/theme.ts-OLDHASH1.js'), 'old entry');
+    writeFileSync(statePath(root), `${JSON.stringify({ files: ['theme.ts-OLDHASH1.js'] }, null, 2)}\n`);
+    await buildTheme(root);
+    const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
+    const script = recorded.find((file) => /^theme-.*\.js$/.test(file));
+    expect(script).toBeDefined();
+    expect(recorded.some((file) => file.includes('.ts-'))).toBe(false);
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain(`'${script}' | asset_url`);
+    expect(existsSync(join(root, 'assets/theme.ts-OLDHASH1.js'))).toBe(false);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+  });
+
+  it('keeps entries that share a base name distinct', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'frontend/theme.js'), "console.log('plain')");
+    await build({
+      configFile: false, root, logLevel: 'silent',
+      plugins: [shopifyTheme({ themeRoot: root, entries: { 'theme.ts': 'frontend/theme.ts', 'theme.js': 'frontend/theme.js' } })],
+    });
+    const scripts = (JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[]).filter((file) => /^theme.*\.js$/.test(file));
+    expect(scripts).toHaveLength(2);
+    expect(new Set(scripts).size).toBe(2);
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+    for (const script of scripts) expect(snippet).toContain(`'${script}' | asset_url`);
+  });
+
   it('cleans a high-volume recorded set without touching unrecorded assets', async () => {
     const root = fixture();
     const stale = Array.from({ length: 1_500 }, (_, index) => `stale-${index}.js`);
@@ -504,7 +532,7 @@ describe('build output variety', () => {
       plugins: [shopifyTheme({ themeRoot: root, entries: { 'dyn.ts': 'frontend/dyn.ts', 'media.css': 'frontend/media.css' } })],
     });
     const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
-    for (const pattern of [/^dyn\.ts-.*\.js$/, /^lazy.*\.js$/, /\.woff2$/, /\.svg$/, /\.js\.map$/]) {
+    for (const pattern of [/^dyn-.*\.js$/, /^lazy.*\.js$/, /\.woff2$/, /\.svg$/, /\.js\.map$/]) {
       expect(recorded.some((file) => pattern.test(file)), String(pattern)).toBe(true);
     }
     expect(recorded.every((file) => !file.includes('/') && existsSync(join(root, 'assets', file)))).toBe(true);
@@ -526,7 +554,7 @@ describe('entry options in builds', () => {
     });
     const snippet = readFileSync(snippetPath(root), 'utf8');
     expect(snippet).toMatch(/\{% when 'theme\.css' %\}\n<style>\{\{ 'theme-[^']+\.css' \| inline_asset_content \}\}<\/style>/);
-    expect(snippet).toMatch(/<script type="module" src="\{\{ 'theme\.ts-[^']+\.js' \| asset_url \}\}" data-bundle fetchpriority="high"><\/script>/);
+    expect(snippet).toMatch(/<script type="module" src="\{\{ 'theme-[^']+\.js' \| asset_url \}\}" data-bundle fetchpriority="high"><\/script>/);
     const recorded = JSON.parse(readFileSync(statePath(root), 'utf8')).files as string[];
     expect(recorded.some((file) => /^theme-.*\.css$/.test(file) && existsSync(join(root, 'assets', file)))).toBe(true);
   });
