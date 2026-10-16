@@ -22,6 +22,7 @@ The result is hard to scan. The developer cannot tell at a glance which mode is 
 - Never hide or rewrite Shopify CLI output, prompts, colors, or exit codes.
 - Readable in a plain terminal, in CI, and when piped: no ANSI and the same facts when the output is not a TTY.
 - Keep every existing diagnostic code searchable and unchanged.
+- Look good without costing speed: no added wait on the startup path, no processing of Shopify CLI's output stream, and no dependency (see "Performance").
 
 ## Non-goals
 
@@ -38,12 +39,21 @@ Printed once by `vite-shopify-theme dev`, before Vite and Shopify CLI start:
 
 ```text
 vite-shopify-theme 0.7.0 · HMR
+  versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0
   store     alessi-dev.myshopify.com (environment: development)
   assets    http://localhost:5173 · 2 entries
   snippet   snippets/vite-tag.liquid
 ```
 
-In editor mode the `assets` row reads `built to assets/ and synced by Shopify CLI · live reload: full-page`. The store and environment come from `shopify.theme.toml` and the flags after `--`, which the command already reads to select the environment; the row is omitted when they cannot be determined. The Shopify preview URL is shown only when it follows from flags (`--host`, `--port`); otherwise the header points at Shopify's own lines instead of guessing.
+In editor mode the `assets` row reads `built to assets/ · synced by Shopify CLI · live reload: full-page`. The store and environment come from `shopify.theme.toml` and the flags after `--`, which the command already reads to select the environment; the row is omitted when they cannot be determined. The Shopify preview URL is shown only when it follows from flags (`--host`, `--port`); otherwise the header points at Shopify's own lines instead of guessing.
+
+### Versions
+
+The `versions` row names Vite, Shopify CLI, and Node, so a bug report starts with the right facts. Vite and Node cost nothing: the command already resolves Vite's `package.json`, and Node is `process.version`. Shopify CLI is read from a local `@shopify/cli/package.json` when the project depends on it, and otherwise from `shopify version`, started in parallel with Vite and given a short timeout. A version that is not known in time is omitted; it never delays startup.
+
+### Shopify CLI section
+
+Shopify CLI's output must stay easy to find and must stay exactly as Shopify prints it. The command prints one rule, `━━ Shopify CLI 4.9.3 ━━━━`, with the name and version in the accent color, right before it starts Shopify CLI. Everything after it, including the `info` panel, preview and Theme Editor URLs, warnings, and errors, is Shopify's own, with its colors and prompts. There is no closing rule in the middle of the stream, because placing one would require reading the output. The footer marks the end.
 
 ### Vite banner
 
@@ -79,6 +89,16 @@ Hints never block startup and never edit files.
 - Plain output when stdout is not a TTY, `CI` is set, or `NO_COLOR` is set; ANSI colors otherwise (no color library).
 - `vite-shopify-theme dev --raw` prints today's output exactly: no header, footer, hints, or Vite banner change.
 
+## Performance
+
+The status view must be free for the developer who never reads it.
+
+- **Startup**: the header is built from values the command already has (flags, `shopify.theme.toml`, the resolved Vite package) and written before the first `spawn`, with no `await` added to the critical path. The only new asynchronous work is the optional `shopify version` lookup, which runs in parallel with Vite and has a timeout of about 1.5 s. The wait for the first build or snippet is unchanged.
+- **Shopify CLI**: stdio stays inherited, as today. The command does not read, buffer, or rewrite its output, so there is no per-line cost and no change in latency.
+- **Rebuilds**: one string and one write per build, produced from numbers the plugin already measures. No timers and no polling.
+- **Weight**: plain ANSI escapes, precomputed once, and no dependency. The formatter is a small module loaded only by `dev`; `vite build` and plugin consumers do not import it.
+- **Budget**: the change adds well under 5 ms to the time before Shopify CLI starts, measured by a test that compares the time of the first `spawn` with and without `--raw`.
+
 ## Invariants check
 
 | Invariant | Effect |
@@ -99,6 +119,7 @@ Terminal text is not a stable interface except diagnostic codes (`[shopify-theme
 - Unit: TTY, non-TTY, `CI`, and `NO_COLOR` selection; `--raw` leaves output identical to today's.
 - Integration with fake child processes: ordering of header, children output, and footer; exit codes and signal forwarding unchanged; Shopify output bytes pass through unmodified.
 - Integration: rebuild lines for a successful and a failed watch build.
+- Performance: the header is written before the first `spawn` and adds no awaited work; a missing or slow `shopify version` never delays Shopify CLI's start and only omits the row.
 - Canonical verification: `npm run check`; a manual run against a real store in both modes, since the Shopify E2E workflow only covers HMR.
 
 ## Decisions
@@ -106,7 +127,8 @@ Terminal text is not a stable interface except diagnostic codes (`[shopify-theme
 1. **Shopify CLI output is passed through, never parsed.** Parsing is fragile across Shopify CLI versions (the compatibility matrix covers 3.x and 4.x) and a pipe or pseudo-terminal would break its prompts. The plugin owns only its own lines.
 2. **A header and footer rather than a dashboard.** They give the at-a-glance facts without redrawing the screen, so they work in every terminal and in logs.
 3. **Preflight hints come second.** They add the most value for new setups but need their own detection rules; the header, footer, and rebuild lines ship first.
-4. **`--raw` instead of a verbosity ladder.** One escape hatch that restores today's behavior is enough until a concrete need appears.
+4. **One rule instead of a framed Shopify section.** A closing rule would need to know where Shopify's output ends, which means reading it. The opening rule and the footer give the same orientation at no cost.
+5. **`--raw` instead of a verbosity ladder.** One escape hatch that restores today's behavior is enough until a concrete need appears.
 
 ## Open questions
 
@@ -116,7 +138,7 @@ Terminal text is not a stable interface except diagnostic codes (`[shopify-theme
 
 ## Implementation order
 
-1. Formatter module for header, footer, and rebuild lines with TTY and color selection, plus unit tests.
+1. Formatter module for header, versions, the Shopify CLI rule, footer, and rebuild lines with TTY and color selection, plus unit tests.
 2. `src/cli/dev.ts`: print header and footer around the existing spawns; add `--raw`; pass an environment flag so the plugin can suppress Vite's URL block.
 3. `src/plugin.ts`: replace the development info line and the Vite URL block under the CLI; add rebuild lines in watch mode.
 4. Documentation: `docs/development-modes.md`, `docs/troubleshooting.md`, README, and a changelog note.
