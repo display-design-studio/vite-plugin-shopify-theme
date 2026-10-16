@@ -24,6 +24,23 @@ How it behaves:
 - Stopping the command releases the lock. The snippet stays as the generated build output (it is not restored to a placeholder as in `dev`), and the last two builds stay in `assets/` until the next build removes the older one.
 - Tailwind classes used only in Liquid files are picked up because Tailwind watches those files.
 
+## Terminal output
+
+`dev` and `dev --editor` print a short header before anything starts and a line when the session ends. Shopify CLI's own output is not parsed or changed.
+
+```text
+vite-shopify-theme 0.6.2 · HMR
+  versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0
+  store     your-store.myshopify.com (environment: development)
+```
+
+- `versions` names Vite, Shopify CLI (when the project depends on it), and Node, which helps when you report a problem.
+- `store` comes from `--store`, `SHOPIFY_FLAG_STORE`, or the selected environment in `shopify.theme.toml`.
+- In editor mode an `assets` row shows that assets are built to `assets/` and synced by Shopify CLI, with the live-reload mode.
+- When both processes have stopped, `Stopped.` says what was left behind: the restored development snippet, the generated snippet of editor mode, or a remaining lock to clean up.
+
+Colors appear only on an interactive terminal. They are off when the output is piped, when `CI` or `NO_COLOR` is set, or when `TERM` is `dumb`; the text is the same. Add `--raw` to print only Vite and Shopify CLI output, as before: `vite-shopify-theme dev --raw`.
+
 ## Shopify environment
 
 Create `shopify.theme.toml` in the theme root (keep it out of git; `init` ignores it):
