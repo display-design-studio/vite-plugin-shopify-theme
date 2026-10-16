@@ -108,6 +108,16 @@ describe('setup CLI', () => {
     expect(readFileSync(join(fresh, 'example.shopify.theme.toml'), 'utf8')).toBe('[environments.development]\nstore = "your-store.myshopify.com"\n');
   });
 
+  it('adds a dev:editor script without replacing one the project already defines', async () => {
+    const root = theme();
+    await initialize({ yes: true, directory: root }, { version: '0.5.2', cwd: '/', run: vi.fn() });
+    expect(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts['dev:editor']).toBe('vite-shopify-theme dev --editor');
+    const custom = theme();
+    writeFileSync(join(custom, 'package.json'), '{"scripts":{"dev:editor":"my-own"}}\n');
+    await initialize({ yes: true, directory: custom }, { version: '0.5.2', cwd: '/', run: vi.fn() });
+    expect(JSON.parse(readFileSync(join(custom, 'package.json'), 'utf8')).scripts['dev:editor']).toBe('my-own');
+  });
+
   it('is idempotent and merges ignore files without duplicates', async () => {
     const root = theme();
     writeFileSync(join(root, '.gitignore'), 'coverage/\nnode_modules/\n');
@@ -198,6 +208,24 @@ describe('development CLI', () => {
     await runDevelopment(['--host', '--', '--theme', '123', '--store', 'x.myshopify.com'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
     expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), '--host']);
     expect(calls[1][1]).toEqual(['theme', 'dev', '--theme', '123', '--store', 'x.myshopify.com']);
+  });
+
+  it('runs a watched build and full-page reloads in editor mode', async () => {
+    const calls: any[] = [];
+    const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+    await runDevelopment(['--editor', '--mode', 'staging', '--', '--store', 'x.myshopify.com'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
+    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), 'build', '--watch', '--mode', 'staging']);
+    expect(calls[1][1]).toEqual(['theme', 'dev', '--live-reload', 'full-page', '--store', 'x.myshopify.com']);
+  });
+
+  it('lets the caller choose the live-reload mode in editor mode', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shopify-theme-env-'));
+    expect(shopifyThemeArguments(root, [], {}, true)).toEqual(['theme', 'dev', '--live-reload', 'full-page']);
+    expect(shopifyThemeArguments(root, ['--live-reload', 'hot-reload'], {}, true)).toEqual(['theme', 'dev', '--live-reload', 'hot-reload']);
+    expect(shopifyThemeArguments(root, ['--live-reload=off'], {}, true)).toEqual(['theme', 'dev', '--live-reload=off']);
+    expect(shopifyThemeArguments(root, [], { SHOPIFY_FLAG_LIVE_RELOAD: 'off' }, true)).toEqual(['theme', 'dev']);
+    expect(shopifyThemeArguments(root, [], {}, false)).toEqual(['theme', 'dev']);
   });
 
   it('selects the development environment from shopify.theme.toml unless one is already chosen', () => {

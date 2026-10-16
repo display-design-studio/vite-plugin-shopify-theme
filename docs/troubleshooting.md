@@ -30,7 +30,7 @@ Do not delete ownership state before investigating. Confirm that the filename is
 
 ## Styles or scripts are missing only in the Theme Editor
 
-The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. Use the build snapshot workflow, or an HTTPS tunnel with `devOrigin`; see [Live Theme Editor with a tunnel](./cookbook/theme-editor-and-tunnels). Pages served from a custom storefront domain are not in the development CORS allow list.
+The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. Run `npm run dev:editor`, which syncs hashed assets to Shopify and needs no tunnel (see [Development modes](./development-modes#editor-mode)), or use an HTTPS tunnel with `devOrigin`; see [Live Theme Editor](./cookbook/theme-editor-and-tunnels). Pages served from a custom storefront domain are not in the development CORS allow list.
 
 ## The generated snippet is close to Shopify's size limit
 

@@ -557,3 +557,80 @@ describe('inline stylesheet size limit', () => {
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('INLINE_CSS_TOO_LARGE'));
   });
 });
+
+describe('watch builds', () => {
+  // Rollup reports END after every build, including a failed one that reported ERROR first.
+  const nextBuild = (watcher: any) => new Promise<string>((resolve) => {
+    let failed = false;
+    const listener = (event: { code: string }) => {
+      if (event.code === 'ERROR') failed = true;
+      if (event.code === 'END') { watcher.off('event', listener); resolve(failed ? 'ERROR' : 'END'); }
+    };
+    watcher.on('event', listener);
+  });
+  const startWatch = async (root: string) => {
+    const watcher: any = await build({ configFile: false, root, logLevel: 'silent', build: { watch: {} }, plugins: [shopifyTheme({ entries, themeRoot: root })] });
+    return watcher;
+  };
+  const stylesheet = (root: string) => JSON.parse(readFileSync(join(root, 'assets/vite-manifest.json'), 'utf8'))['frontend/theme.css'].file.replace(/^assets\//, '') as string;
+  const owner = (root: string) => JSON.parse(readFileSync(join(lockPath(root), 'owner.json'), 'utf8'));
+
+  it('holds one lock for the session, keeps the previous build for one more build, and releases on close', async () => {
+    const root = fixture();
+    const watcher = await startWatch(root);
+    expect(await nextBuild(watcher)).toBe('END');
+    expect(owner(root)).toMatchObject({ mode: 'build', pid: process.pid, generation: 1 });
+    const first = stylesheet(root);
+
+    let pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green }');
+    expect(await pending).toBe('END');
+    const second = stylesheet(root);
+    expect(second).not.toBe(first);
+    expect(existsSync(join(root, 'assets', first))).toBe(true);
+    expect(existsSync(join(root, 'assets', second))).toBe(true);
+    expect(owner(root).generation).toBe(2);
+    expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).toEqual(expect.arrayContaining([first, second]));
+
+    // A rebuild with identical output, such as one triggered by a scanner, must not drop the retained build.
+    pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green } ');
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green }');
+    await pending;
+    expect(stylesheet(root)).toBe(second);
+    expect(existsSync(join(root, 'assets', first))).toBe(true);
+
+    pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: blue }');
+    expect(await pending).toBe('END');
+    const third = stylesheet(root);
+    expect(existsSync(join(root, 'assets', first))).toBe(false);
+    expect(existsSync(join(root, 'assets', second))).toBe(true);
+    expect(readFileSync(snippetPath(root), 'utf8')).toContain(third);
+    expect(JSON.parse(readFileSync(statePath(root), 'utf8')).files).not.toContain(first);
+    expect(existsSync(join(root, 'assets/manual.svg'))).toBe(true);
+
+    await watcher.close();
+    expect(existsSync(lockPath(root))).toBe(false);
+  }, 30_000);
+
+  it('keeps the lock and the last working output after a failed build, then recovers', async () => {
+    const root = fixture();
+    const watcher = await startWatch(root);
+    expect(await nextBuild(watcher)).toBe('END');
+    const snippet = readFileSync(snippetPath(root), 'utf8');
+
+    let pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.ts'), 'export const broken = ;');
+    expect(await pending).toBe('ERROR');
+    expect(existsSync(lockPath(root))).toBe(true);
+    expect(readFileSync(snippetPath(root), 'utf8')).toBe(snippet);
+
+    pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.ts'), "console.log('fixed')");
+    expect(await pending).toBe('END');
+    expect(owner(root).generation).toBe(2);
+    await watcher.close();
+    expect(existsSync(lockPath(root))).toBe(false);
+  }, 30_000);
+});
