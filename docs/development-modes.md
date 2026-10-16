@@ -19,7 +19,7 @@ How it behaves:
 - Assets keep content-hashed names. The plugin holds one ownership lock for the whole session and writes the snippet shortly after the assets it references.
 - The previous build's assets stay in `assets/` for one more build, and an asset is deleted only after two builds in a row no longer produce it. The Shopify CLI upload order is not guaranteed, so a page may briefly render without styles right after a change; a reload fixes it.
 - A failed build keeps the last working assets and snippet and the session continues after the next fix.
-- Stopping the command releases the lock. The last two builds stay in `assets/` and are removed by the next build.
+- Stopping the command releases the lock. The snippet stays as the generated build output (it is not restored to a placeholder as in `dev`), and the last two builds stay in `assets/` until the next build removes the older one.
 - Tailwind classes used only in Liquid files are picked up because Tailwind watches those files.
 
 ## Shopify environment
