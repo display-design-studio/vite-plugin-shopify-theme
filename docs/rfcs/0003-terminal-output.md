@@ -1,6 +1,6 @@
 # RFC 0003: Clear terminal output for `dev` and `dev --editor`
 
-- Status: draft
+- Status: accepted for implementation
 - Target: 0.7.0
 
 Give `vite-shopify-theme dev` and `dev --editor` a short, stable status view in the terminal: what is running, against which store, where the assets come from, and what happened on every rebuild. Shopify CLI's own output stays untouched. The root exports, zero runtime dependencies, explicit entries, and deterministic generated files do not change.
@@ -45,7 +45,7 @@ vite-shopify-theme 0.7.0 · HMR
   snippet   snippets/vite-tag.liquid
 ```
 
-In editor mode the `assets` row reads `built to assets/ · synced by Shopify CLI · live reload: full-page`. The store and environment come from `shopify.theme.toml` and the flags after `--`, which the command already reads to select the environment; the row is omitted when they cannot be determined. The Shopify preview URL is shown only when it follows from flags (`--host`, `--port`); otherwise the header points at Shopify's own lines instead of guessing.
+In editor mode the `assets` row reads `built to assets/ · synced by Shopify CLI · live reload: full-page`. The store and environment come from `shopify.theme.toml` and the flags after `--`, which the command already reads to select the environment; the row is omitted when they cannot be determined. The Shopify preview URL is shown only when it follows from flags (`--host`, `--port`); otherwise it is not repeated, because Shopify CLI prints it in its own panel.
 
 ### Versions
 
@@ -146,11 +146,11 @@ Terminal text is not a stable interface except diagnostic codes (`[shopify-theme
 5. **The plugin applies simple environments itself.** One Shopify panel is clearer than two, and the header already shows the store and environment. The fallback to `--environment` keeps unusual setups working unchanged.
 6. **`--raw` instead of a verbosity ladder.** One escape hatch that restores today's behavior is enough until a concrete need appears.
 
-## Open questions
+## Resolved questions
 
-- Print the header on stdout or stderr. Stderr keeps `stdout` clean for tools, but some terminals color it as an error.
-- Whether Windows consoles without ANSI support need an explicit plain fallback, or `NO_COLOR` handling is enough.
-- Whether to show the Shopify preview URL by reading Shopify CLI's default port, or only when flags make it certain.
+- **Stream**: the header, footer, hints, and rebuild lines go to stdout. The command produces no data on stdout, so nothing is polluted, and some terminals and CI systems color stderr as an error.
+- **Windows consoles without ANSI**: no special handling. Output is plain text when stdout is not a TTY or `NO_COLOR` is set; current Windows terminals render the colors.
+- **Preview URL**: Shopify CLI already prints it in its own panel, so the header shows a URL only when `--host` and `--port` make it certain, and does not repeat it otherwise.
 
 ## Implementation order
 
