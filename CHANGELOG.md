@@ -7,7 +7,7 @@ All notable changes to this package are documented here.
 ### Documentation
 
 - Corrected how to reference manual `assets/` files from CSS: URLs in a partial in a subfolder need the `../` path to the entry's folder, otherwise the built stylesheet points to a folder that does not exist.
-- Added a troubleshooting entry for endless rebuilds under `dev:editor` and `vite build --watch` when `.gitignore` lacks the generated-file patterns that `init` writes.
+- Added a troubleshooting entry for endless rebuilds under `dev:editor` and `vite build --watch` when `.gitignore` lacks the generated-file patterns that `init` writes. The entry states that the hashed assets are what retrigger the build.
 
 ## 0.6.0
 
