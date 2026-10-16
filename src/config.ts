@@ -250,7 +250,14 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
       // Vite 8.0 reads build inputs here; later Vite 8 releases read the
       // top-level input above. Supplying the same owned map in both places is
       // harmless after the migration and keeps the declared minimum working.
-      rolldownOptions: { input: buildEntries, output: { entryFileNames: '[name]-[hash].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
+      rolldownOptions: { input: buildEntries, output: { entryFileNames: ({ name }) => `${entryBaseName(name)}-[hash].js`, chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } },
     },
   };
+}
+
+// Entry keys carry the script extension (`theme.ts`); dropping it avoids names such as `theme.ts-<hash>.js`.
+const scriptExtension = /\.[cm]?[jt]sx?$/;
+function entryBaseName(name: string) {
+  const base = name.replace(scriptExtension, '');
+  return base || name;
 }
