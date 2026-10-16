@@ -2,7 +2,7 @@
 
 All notable changes to this package are documented here.
 
-## Unreleased
+## 0.6.1
 
 ### Changed
 
