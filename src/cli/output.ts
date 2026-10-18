@@ -1,16 +1,6 @@
-export interface OutputStyle { color: boolean }
+import { outputStyle, paint, type OutputStyle } from '../terminal.js';
 
-/** Colors only on an interactive terminal; `NO_COLOR`, `CI`, a dumb terminal, or piped output get plain text. */
-export function outputStyle(env: NodeJS.ProcessEnv, isTTY: boolean): OutputStyle {
-  return { color: isTTY && !env.NO_COLOR && !env.CI && env.TERM !== 'dumb' };
-}
-
-const codes = { bold: 1, dim: 2, red: 31, green: 32, yellow: 33, magenta: 35, cyan: 36, blue: 94 } as const;
-type Paint = keyof typeof codes;
-
-function paint(style: OutputStyle, name: Paint, text: string) {
-  return style.color ? `\x1b[${codes[name]}m${text}\x1b[0m` : text;
-}
+export { outputStyle, type OutputStyle };
 
 export interface HeaderInput {
   version: string;
@@ -53,4 +43,28 @@ export function formatFooter(input: FooterInput, style: OutputStyle): string {
       ? `Generated snippet kept; run ${paint(style, 'bold', 'vite build')} before deploying.`
       : 'Development snippet restored.';
   return `\n${stopped} ${detail}\n`;
+}
+
+/** One rule that opens Shopify CLI's output, which is passed through unchanged. */
+export function formatShopifyRule(version: string | undefined, style: OutputStyle, width = 72): string {
+  const label = `Shopify CLI${version ? ` ${version}` : ''}`;
+  const tail = '━'.repeat(Math.max(4, width - label.length - 4));
+  return `${paint(style, 'blue', paint(style, 'bold', `━━ ${label} ${tail}`))}\n`;
+}
+
+const generatedPatterns = ['.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js'];
+const wholeAssets = ['assets', 'assets/', '/assets', '/assets/', 'assets/*', '/assets/*'];
+
+/** Generated-file patterns that `init` writes and a watch session needs in `.gitignore`; Tailwind watches every unignored file. */
+export function missingGeneratedPatterns(gitignore: string | undefined): string[] {
+  const lines = new Set((gitignore ?? '').split(/\r?\n/).map((line) => line.trim()));
+  const ignoresAssets = wholeAssets.some((line) => lines.has(line));
+  return generatedPatterns.filter((pattern) => !lines.has(pattern) && !(ignoresAssets && pattern.startsWith('assets/')));
+}
+
+export const troubleshootingUrl = 'https://display-design-studio.github.io/vite-plugin-shopify-theme/troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again';
+
+export function formatGitignoreHint(missing: string[], style: OutputStyle): string {
+  if (!missing.length) return '';
+  return `  ${paint(style, 'yellow', 'hint')}  .gitignore lacks ${missing.length === 1 ? 'a generated-file pattern' : 'generated-file patterns'} (${missing.join(', ')}); Tailwind CSS then rebuilds in a loop.\n        ${paint(style, 'dim', troubleshootingUrl)}\n\n`;
 }

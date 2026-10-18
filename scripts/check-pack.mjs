@@ -26,6 +26,9 @@ export const expectedFiles = [
   'dist/ownership.d.ts',
   'dist/plugin.d.ts',
   'dist/snippets.d.ts',
+  'dist/terminal.d.ts',
+  'dist/terminal.js',
+  'dist/terminal.js.map',
   'package.json',
 ];
 

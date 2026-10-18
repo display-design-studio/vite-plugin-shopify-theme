@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { build, createServer } from 'vite';
+import { build, createLogger, createServer } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initialize } from '../src/cli/init.js';
 import { shopifyTheme } from '../src/index.js';
@@ -640,6 +640,35 @@ describe('watch builds', () => {
 
     await watcher.close();
     expect(existsSync(lockPath(root))).toBe(false);
+  }, 30_000);
+
+  it('prints one line per build with the snippet result, including a failed build', async () => {
+    const root = fixture();
+    const lines: string[] = [];
+    const logger = createLogger('info');
+    logger.info = (message) => { lines.push(message); };
+    const watcher: any = await build({ configFile: false, root, customLogger: logger, build: { watch: {} }, plugins: [shopifyTheme({ entries, themeRoot: root })] });
+    const report = () => lines.filter((line) => line.includes('[shopify-theme]'));
+    expect(await nextBuild(watcher)).toBe('END');
+    expect(report().at(-1)).toMatch(/^\[shopify-theme\] build ok · 2 entries · \d+ ms · snippet written$/);
+
+    let pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green }');
+    await pending;
+    expect(report().at(-1)).toMatch(/build ok · 2 entries · \d+ ms · snippet written$/);
+
+    pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green } ');
+    writeFileSync(join(root, 'frontend/theme.css'), '.entry { color: green }');
+    await pending;
+    expect(report().at(-1)).toMatch(/build ok · 2 entries · \d+ ms · snippet unchanged$/);
+
+    pending = nextBuild(watcher);
+    writeFileSync(join(root, 'frontend/theme.ts'), 'export const broken = ;');
+    expect(await pending).toBe('ERROR');
+    expect(report().at(-1)).toBe('[shopify-theme] build failed · keeping the last good output');
+    expect(report().filter((line) => line.includes('failed'))).toHaveLength(1);
+    await watcher.close();
   }, 30_000);
 
   it('keeps the lock and the last working output after a failed build, then recovers', async () => {
