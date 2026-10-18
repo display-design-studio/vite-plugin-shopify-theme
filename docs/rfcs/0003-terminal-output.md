@@ -66,7 +66,7 @@ One line per build, with a stable prefix and timing, from numbers the plugin alr
 
 ```text
 [shopify-theme] build ok · 4 entries · 312 ms · snippet unchanged
-[shopify-theme] build failed · keeping the last good output (still synced)
+[shopify-theme] build failed · keeping the last good output
 ```
 
 A failed build keeps showing Vite's own error above this line.
