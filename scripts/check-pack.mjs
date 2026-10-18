@@ -18,6 +18,7 @@ export const expectedFiles = [
   'dist/cli.js.map',
   'dist/cli/dev.d.ts',
   'dist/cli/init.d.ts',
+  'dist/cli/output.d.ts',
   'dist/config.d.ts',
   'dist/index.d.ts',
   'dist/index.js',

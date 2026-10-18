@@ -5,7 +5,7 @@ import { initialize, type InitOptions, type Language, type PackageManager } from
 import { runDevelopment } from './cli/dev.js';
 
 function usage() {
-  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options] [-- shopify theme dev options]\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --yes\n`;
+  return `Usage:\n  vite-shopify-theme init [directory] [options]\n  vite-shopify-theme dev [vite options] [-- shopify theme dev options]\n\nDev options:\n  --editor   build with vite build --watch and sync through Shopify CLI (no tunnel)\n  --raw      print only Vite and Shopify CLI output, without the header and footer\n\nInit options:\n  --new | --existing\n  --lang js|ts\n  --package-manager npm|pnpm|yarn|bun\n  --tailwind | --no-tailwind\n  --yes\n`;
 }
 
 export function parseInitArguments(arguments_: string[]): InitOptions {
@@ -47,7 +47,7 @@ export function parseInitArguments(arguments_: string[]): InitOptions {
 async function main() {
   const [command, ...arguments_] = process.argv.slice(2);
   if (!command || command === '--help' || command === '-h') { console.log(usage()); return; }
-  if (command === 'dev') { await runDevelopment(arguments_).started; return; }
+  if (command === 'dev') { await runDevelopment(arguments_, { version: __PACKAGE_VERSION__ }).started; return; }
   if (command !== 'init') throw new Error(`Unknown command: ${command}\n\n${usage()}`);
   await initialize(parseInitArguments(arguments_), { version: __PACKAGE_VERSION__ });
 }

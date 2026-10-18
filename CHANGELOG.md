@@ -2,6 +2,12 @@
 
 All notable changes to this package are documented here.
 
+## Unreleased
+
+### Added
+
+- `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).
+
 ## 0.6.1
 
 ### Changed
