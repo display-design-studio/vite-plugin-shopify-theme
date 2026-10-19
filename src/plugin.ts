@@ -6,6 +6,7 @@ import { canonicalPathInside, CSS_BUNDLE_ENTRY, CSS_BUNDLE_ID, diagnostic, error
 import type { NormalizedOptions, ShopifyThemeOptions } from './config.js';
 import { acquireLock, atomicWrite, readManifest, readOwnershipState, readText, releaseLock, removeFile, sha, STATE_FILE, updateLock } from './ownership.js';
 import type { LockOwner } from './ownership.js';
+import { formatBuildLine, outputStyle } from './terminal.js';
 import { developmentSnippet, HOT_RELOAD_CLIENT, HOT_RELOAD_EVENT, HOT_RELOAD_SOURCE, renderProductionSnippet, INLINE_ASSET_LIMIT, inlineSizeWarning, RESOLVED_HOT_RELOAD_CLIENT, snippetSizeWarning, sourceKey } from './snippets.js';
 
 type DiagnosticEvent = 'BUILD_OUTPUT_WRITTEN' | 'CONFIG_RESOLVED' | 'DEVELOPMENT_ACTIVATED' | 'DEVELOPMENT_RESTORED' | 'HOT_RELOAD' | 'OWNERSHIP_ACQUIRED' | 'OWNERSHIP_RELEASED';
@@ -28,6 +29,11 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let latestGeneration = new Set<string>();
   let previousGeneration = new Set<string>();
   let generation = 0;
+  let buildStartedAt = 0;
+  let buildDuration = 0;
+  const reportBuild = (report: Parameters<typeof formatBuildLine>[0]) => {
+    if (watching()) config.logger.info(formatBuildLine(report, outputStyle(process.env, Boolean(process.stdout.isTTY))));
+  };
   const watching = () => config.command === 'build' && config.build?.watch != null;
   const logDiagnostic = (event: DiagnosticEvent, message: string) => {
     if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
@@ -98,7 +104,8 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         for (const warning of oversized) config.logger.warn(warning);
         const sizeWarning = snippetSizeWarning(generatedSnippet, sourceKey(snippet, options.themeRoot));
         if (sizeWarning) config.logger.warn(sizeWarning);
-        if (!originalSnippet.exists || originalSnippet.content !== generatedSnippet) atomicWrite(snippet, generatedSnippet);
+        const snippetChanged = !originalSnippet.exists || originalSnippet.content !== generatedSnippet;
+        if (snippetChanged) atomicWrite(snippet, generatedSnippet);
         writtenSnippet = { path: snippet, generatedHash: sha(generatedSnippet), original: originalSnippet };
         const current = new Set(files);
         // In watch mode the remote theme may still render the previous snippet, so the previous build's
@@ -124,6 +131,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           generation += 1;
           if (owner) { owner.generation = generation; updateLock(options.themeRoot, owner); }
         }
+        reportBuild({ ok: true, entries: Object.keys(options.entries).length, ms: buildDuration, snippet: snippetChanged ? 'written' : 'unchanged' });
         logDiagnostic('BUILD_OUTPUT_WRITTEN', `assets=${files.length} removed=${removed} snippet=${sourceKey(snippet, options.themeRoot)}`);
       } catch (error) {
         let rollbackError: unknown;
@@ -133,6 +141,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
             else removeFile(writtenSnippet.path, 'generated Liquid snippet');
           }
         } catch (failure) { rollbackError = failure; }
+        reportBuild({ ok: false });
         // A watch session keeps its lock across failed builds so the next edit can recover.
         try { if (!watching()) cleanup(); } catch (cleanupError) {
           throw diagnostic('BUILD_CLEANUP_FAILED', `Build processing failed and ownership cleanup also failed (${errorDetail(cleanupError)}). Resolve the cleanup error before retrying.`, new AggregateError([error, cleanupError]));
@@ -164,6 +173,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       logDiagnostic('CONFIG_RESOLVED', `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
     },
     buildStart() {
+      buildStartedAt = performance.now();
       if (config.command !== 'build' || (watching() && owner)) return;
       owner = acquireLock(options.themeRoot, 'build');
       logDiagnostic('OWNERSHIP_ACQUIRED', `mode=build root=${options.themeRoot}`);
@@ -180,12 +190,15 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     },
     writeBundle(_output, bundle) {
       if (config.command !== 'build') return;
+      buildDuration = performance.now() - buildStartedAt;
       // Shopify CLI uploads in no fixed order; after the first build of a watch session, give the assets
       // (already on disk) a head start before the snippet that references them is written.
       if (watching() && generation > 0) return delay(WATCH_SNIPPET_DELAY).then(() => writeOutput(bundle));
       writeOutput(bundle);
     },
-    buildEnd(error) { if (error && config.command === 'build' && !watching()) cleanup(); },
+    buildEnd(error) {
+      if (error && config.command === 'build') { if (watching()) reportBuild({ ok: false }); else cleanup(); }
+    },
     closeBundle() { if (config.command === 'build' && !watching()) cleanup(); },
     closeWatcher() { if (watching()) cleanup(); },
     configureServer(server: ViteDevServer) {

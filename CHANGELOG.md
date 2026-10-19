@@ -7,6 +7,7 @@ All notable changes to this package are documented here.
 ### Added
 
 - `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).
+- A `━━ Shopify CLI ━━━━` rule marks where Shopify CLI's output begins, and watch builds (`dev --editor` or `vite build --watch`) print one line each: `[shopify-theme] build ok · 2 entries · 312 ms · snippet written` or `snippet unchanged`, and `build failed · keeping the last good output` after a failed build. In editor mode, a hint appears when `.gitignore` lacks the generated-file patterns that make Tailwind CSS rebuild in a loop (RFC 0003, part 2).
 
 ## 0.6.1
 

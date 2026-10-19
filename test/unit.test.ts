@@ -7,7 +7,8 @@ import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from 
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { describeTarget, runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
-import { formatFooter, formatHeader, outputStyle } from '../src/cli/output.js';
+import { formatFooter, formatGitignoreHint, formatHeader, formatShopifyRule, missingGeneratedPatterns, outputStyle } from '../src/cli/output.js';
+import { formatBuildLine } from '../src/terminal.js';
 import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
 
@@ -828,6 +829,31 @@ describe('terminal output', () => {
     expect(describeTarget(mkdtempSync(join(tmpdir(), 'shopify-theme-target-')), ['theme', 'dev'], {})).toEqual({});
   });
 
+  it('formats one build line for a successful build, a single entry, and a failure', () => {
+    expect(formatBuildLine({ ok: true, entries: 2, ms: 311.6, snippet: 'written' }, plain)).toBe('[shopify-theme] build ok · 2 entries · 312 ms · snippet written');
+    expect(formatBuildLine({ ok: true, entries: 1, ms: 4, snippet: 'unchanged' }, plain)).toBe('[shopify-theme] build ok · 1 entry · 4 ms · snippet unchanged');
+    expect(formatBuildLine({ ok: false }, plain)).toBe('[shopify-theme] build failed · keeping the last good output');
+    expect(strip(formatBuildLine({ ok: false }, colored))).toBe(formatBuildLine({ ok: false }, plain));
+    expect(formatBuildLine({ ok: false }, colored)).toContain('\x1b[31m');
+  });
+
+  it('formats the rule that opens Shopify CLI output with or without a version', () => {
+    expect(formatShopifyRule('4.9.3', plain)).toMatch(/^━━ Shopify CLI 4\.9\.3 ━+\n$/);
+    expect(formatShopifyRule(undefined, plain)).toMatch(/^━━ Shopify CLI ━+\n$/);
+    expect(formatShopifyRule('4.9.3', plain).length).toBe(73);
+    expect(strip(formatShopifyRule('4.9.3', colored))).toBe(formatShopifyRule('4.9.3', plain));
+  });
+
+  it('finds the generated-file patterns missing from .gitignore', () => {
+    expect(missingGeneratedPatterns(undefined)).toHaveLength(5);
+    expect(missingGeneratedPatterns('node_modules/\n.vite-shopify-theme.json\n')).toEqual(['.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js']);
+    expect(missingGeneratedPatterns('.vite-shopify-theme.json\r\n.vite-shopify-theme.lock\r\nassets/vite-manifest.json\r\nassets/*-????????.css\r\nassets/*-????????.js\r\n')).toEqual([]);
+    expect(missingGeneratedPatterns('.vite-shopify-theme.json\n.vite-shopify-theme.lock\nassets/\n')).toEqual([]);
+    expect(formatGitignoreHint([], plain)).toBe('');
+    expect(formatGitignoreHint(['assets/*-????????.js'], plain)).toContain('lacks a generated-file pattern; Tailwind CSS then rebuilds in a loop.');
+    expect(formatGitignoreHint(missingGeneratedPatterns(undefined), plain)).toContain('.gitignore lacks 5 generated-file patterns; Tailwind CSS then rebuilds in a loop. The patterns are listed here:');
+  });
+
   function session(argumentsList: string[], options: { lock?: boolean; version?: string | undefined } = {}) {
     const events: string[] = [];
     const children: any[] = [];
@@ -861,6 +887,26 @@ describe('terminal output', () => {
     expect(events.filter((event) => event.startsWith('write:\nStopped.'))).toHaveLength(1);
     expect(events.at(-1)).toContain('Development snippet restored.');
     process.exitCode = undefined;
+  });
+
+  it('opens Shopify CLI output with a rule written before Shopify starts', async () => {
+    const { events, result } = session([]);
+    await result.started;
+    const rule = events.findIndex((event) => event.startsWith('write:━━ Shopify CLI'));
+    expect(rule).toBeGreaterThan(0);
+    expect(events[rule + 1]).toBe('spawn:shopify');
+    const raw = session(['--raw']);
+    await raw.result.started;
+    expect(raw.events.some((event) => event.includes('Shopify CLI ━'))).toBe(false);
+  });
+
+  it('hints about missing .gitignore patterns in editor mode only', async () => {
+    const editor = session(['--editor']);
+    expect(editor.events[0]).toContain('hint  .gitignore lacks 5 generated-file patterns');
+    expect(editor.events[0]).toContain('troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again');
+    expect(session([]).events[0]).not.toContain('hint');
+    expect(session(['--editor', '--raw']).events.filter((event) => event.startsWith('write:'))).toEqual([]);
+    await editor.result.started;
   });
 
   it('does not report an exit code for a stop the user asked for, but does when a process fails on its own', async () => {

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { formatFooter, formatHeader, outputStyle } from './output.js';
+import { formatFooter, formatGitignoreHint, formatHeader, formatShopifyRule, missingGeneratedPatterns, outputStyle } from './output.js';
 
 export interface DevRuntime {
   cwd?: string;
@@ -115,7 +115,14 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
   const themeArguments = shopifyThemeArguments(cwd, shopifyArguments, env, editor);
   const style = outputStyle(env, runtime.isTTY ?? Boolean(process.stdout.isTTY));
   // Everything the header shows is already known here, so printing it adds no waiting before the first spawn.
-  if (!raw && runtime.version) write(formatHeader({ version: runtime.version, mode: editor ? 'editor' : 'hmr', vite: viteManifest.version, node: process.version, shopify: shopifyCliVersion(cwd), ...describeTarget(cwd, themeArguments, env), liveReload: flagValue(themeArguments, ['--live-reload']) }, style));
+  const shopifyVersion = shopifyCliVersion(cwd);
+  const decorate = !raw && Boolean(runtime.version);
+  if (decorate) {
+    // One small read: in a watch session Tailwind rebuilds in a loop when generated files are not ignored.
+    const gitignore = join(cwd, '.gitignore');
+    const hint = editor ? formatGitignoreHint(missingGeneratedPatterns(existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : undefined), style) : '';
+    write(formatHeader({ version: runtime.version!, mode: editor ? 'editor' : 'hmr', vite: viteManifest.version, node: process.version, shopify: shopifyVersion, ...describeTarget(cwd, themeArguments, env), liveReload: flagValue(themeArguments, ['--live-reload']) }, style) + hint);
+  }
   // Editor mode builds and syncs hashed assets instead of serving them from the dev server.
   const vite = spawnProcess(process.execPath, [viteBin, ...(editor ? ['build', '--watch'] : []), ...viteArguments], { cwd, stdio: 'inherit' });
   const children: ChildProcess[] = [vite];
@@ -147,6 +154,7 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     const ready = await (runtime.ready ?? (editor ? buildReady : snippetReady))(vite, cwd, () => closing);
     if (closing) return;
     if (!ready) console.warn(`vite-shopify-theme: Vite did not write the ${editor ? 'first build' : 'development snippet'} within ${(editor ? editorReadyTimeout : readyTimeout) / 1000}s; starting Shopify CLI anyway.`);
+    if (decorate) write(formatShopifyRule(shopifyVersion, style));
     const shopify = platform === 'win32'
       ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env, stdio: 'inherit', shell: true })
       : spawnProcess('shopify', themeArguments, { cwd, env, stdio: 'inherit' });
