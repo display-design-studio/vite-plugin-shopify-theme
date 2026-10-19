@@ -31,9 +31,14 @@ export function environment(temporary) {
   };
 }
 
+const quote = (argument) => (/^[\w@%+=:,./\\~-]+$/.test(argument) ? argument : `"${argument.replace(/"/g, '\\"')}"`);
+
 export function run(command, args, directory, temporary) {
   const options = { cwd: directory, stdio: 'inherit', env: environment(temporary) };
   if (command === 'npm') execNpmSync(args, options);
+  // pnpm, Yarn, and Bun are .cmd shims on Windows, which Node only runs through a shell.
+  else if (process.platform === 'win32')
+    execFileSync(`${command} ${args.map(quote).join(' ')}`, { ...options, shell: true });
   else execFileSync(command, args, options);
 }
 
