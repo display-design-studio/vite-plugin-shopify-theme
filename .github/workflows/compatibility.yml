@@ -104,3 +104,31 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run compat:consumer -- ${{ matrix.manager }}
+
+  editor:
+    name: ${{ matrix.os }} / ${{ matrix.manager }} / dev --editor
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, manager: npm }
+          - { os: ubuntu-latest, manager: pnpm }
+          - { os: ubuntu-latest, manager: yarn }
+          - { os: ubuntu-latest, manager: bun }
+          - { os: macos-latest, manager: npm }
+          - { os: windows-latest, manager: npm }
+          - { os: windows-latest, manager: pnpm }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.manager == 'bun'
+      - run: npm install --global pnpm@latest
+        if: matrix.manager == 'pnpm'
+      - run: npm install --global yarn@latest
+        if: matrix.manager == 'yarn'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run compat:editor -- ${{ matrix.manager }}
