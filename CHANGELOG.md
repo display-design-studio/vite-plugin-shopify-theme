@@ -4,6 +4,10 @@ All notable changes to this package are documented here.
 
 ## Unreleased
 
+### Deprecated
+
+- `devOrigin` and the HTTPS tunnel recipe. The plugin prints a `DEV_ORIGIN_DEPRECATED` warning when `devOrigin` is set under `vite`, the option is marked `@deprecated` in its types, and the docs point to `dev --editor`, which gives a live Theme Editor without a tunnel. `devOrigin` is removed in 1.0.0.
+
 ### Fixed
 
 - `dev` and `dev --editor` now start Shopify CLI with npm's `INIT_CWD` set to the directory they run in. Shopify CLI reads `INIT_CWD` before the real working directory, so a script started from a workspace root or with `npm --prefix` made it look for the theme and `shopify.theme.toml` in the wrong place (`Environment file not found`, `doesn't seem like you're running this command in a theme directory`). An explicit `--path` or `SHOPIFY_FLAG_PATH` still wins.

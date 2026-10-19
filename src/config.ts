@@ -34,6 +34,7 @@ export interface ShopifyThemeOptions {
   entries: Record<string, string | EntryOptions>;
   themeRoot?: string;
   snippet?: string;
+  /** @deprecated Use `vite-shopify-theme dev --editor` for a live Theme Editor without a tunnel. Removed in 1.0.0. */
   devOrigin?: string;
   diagnostics?: boolean;
 }
@@ -52,7 +53,7 @@ export const VITE_MANIFEST = 'vite-manifest.json';
 export type DiagnosticCode =
   | 'BUILD_CLEANUP_FAILED' | 'BUILD_CSS_MISSING' | 'BUILD_ROLLBACK_FAILED'
   | 'CONFIG_CSS_ENTRY_RESERVED' | 'CONFIG_DEV_ORIGIN' | 'CONFIG_DIAGNOSTICS' | 'CONFIG_ENTRIES' | 'CONFIG_SNIPPET' | 'CONFIG_THEME_ROOT' | 'CONFIG_VITE_CONFLICT'
-  | 'DEV_EXTERNAL_ORIGIN' | 'DEV_ORIGIN_UNAVAILABLE' | 'DEV_OWNERSHIP_LOST'
+  | 'DEV_EXTERNAL_ORIGIN' | 'DEV_ORIGIN_DEPRECATED' | 'DEV_ORIGIN_UNAVAILABLE' | 'DEV_OWNERSHIP_LOST'
   | 'FS_JSON_INVALID' | 'FS_READ_FAILED' | 'FS_REMOVE_FAILED' | 'FS_WRITE_FAILED'
   | 'LOCK_ACQUIRE_FAILED' | 'LOCK_ACTIVE' | 'LOCK_CHANGED' | 'LOCK_CREATE_FAILED' | 'LOCK_METADATA_INVALID' | 'LOCK_METADATA_MISSING' | 'LOCK_RECLAIM_FAILED' | 'LOCK_RELEASE_FAILED'
   | 'MANIFEST_ENTRY_MISSING' | 'MANIFEST_IMPORT_MISSING' | 'MANIFEST_INVALID'

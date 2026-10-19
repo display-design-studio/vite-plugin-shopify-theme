@@ -5,7 +5,7 @@
 | `entries` | `Record<string, string \| EntryOptions>` | required | Explicit Liquid name to source map. A string is shorthand for `{ source }`; see [Entry options](#entry-options). |
 | `themeRoot` | `string` | `.` | Shopify theme root. |
 | `snippet` | `string` | `snippets/vite-tag.liquid` | Generated Liquid snippet. |
-| `devOrigin` | `string` | Vite origin | External HTTPS development origin. |
+| `devOrigin` | `string` | Vite origin | **Deprecated**, removed in 1.0.0. External HTTPS development origin; use `dev --editor` instead. |
 | `diagnostics` | `boolean` | `false` | Lifecycle diagnostics. |
 
 The plugin owns the theme root, custom app type, explicit build input, `assets` output, manifest name, relative base, disabled public directory, and disabled empty-output cleanup. Conflicting values are rejected. Entry sources must be distinct files within the canonical theme root.
@@ -57,6 +57,6 @@ export default defineConfig({
 
 Entry names may contain ASCII letters, digits, dots, underscores, and hyphens and must begin with a letter or digit. Sources must be readable files inside the canonical theme root, including after symlink resolution. A source can belong to only one entry.
 
-`snippet` is relative to `themeRoot`; its parent directory must already exist. `devOrigin` must be an HTTPS origin with no credentials, path, query, or fragment. Enable `diagnostics` when investigating lifecycle behavior; stable messages begin with a `[shopify-theme:CODE]` identifier suitable for issue reports.
+`snippet` is relative to `themeRoot`; its parent directory must already exist. `devOrigin` is deprecated and removed in 1.0.0 (see the [Live Theme Editor](./cookbook/theme-editor-and-tunnels) recipe); until then it must be an HTTPS origin with no credentials, path, query, or fragment, and Vite prints a `DEV_ORIGIN_DEPRECATED` warning. Enable `diagnostics` when investigating lifecycle behavior; stable messages begin with a `[shopify-theme:CODE]` identifier suitable for issue reports.
 
 The plugin rejects conflicting `root`, `appType`, `base`, `publicDir`, build input, output directory, manifest, and destructive `emptyOutDir` settings instead of silently merging an unsafe configuration.

@@ -22,7 +22,7 @@ Confirm no Vite process owns the theme before retrying. Recovery never overwrite
 
 ## Development URLs point at the wrong host
 
-Use `devOrigin` only for an externally managed HTTPS tunnel. It must be an origin such as `https://vite.example.test`, not a URL with a path. For direct local development, omit it and let the plugin use Vite's resolved local origin.
+`devOrigin` is deprecated and will be removed in 1.0.0; prefer `npm run dev:editor`. If you still use it for an externally managed HTTPS tunnel, it must be an origin such as `https://vite.example.test`, not a URL with a path. For direct local development, omit it and let the plugin use Vite's resolved local origin.
 
 ## Shopify preview loads but CSS or JavaScript does not
 
