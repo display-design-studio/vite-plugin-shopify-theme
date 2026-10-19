@@ -18,13 +18,18 @@ try {
   const localIntegrity = `sha512-${createHash('sha512').update(readFileSync(tarball)).digest('base64')}`;
   let registryIntegrity;
   try {
-    registryIntegrity = execNpmSync(['view', `${manifest.name}@${manifest.version}`, 'dist.integrity'], { encoding: 'utf8' }).trim();
+    registryIntegrity = execNpmSync(['view', `${manifest.name}@${manifest.version}`, 'dist.integrity'], {
+      encoding: 'utf8',
+    }).trim();
   } catch (error) {
     const output = `${error?.stdout ?? ''}\n${error?.stderr ?? ''}`;
     if (!/E404|not found/i.test(output)) throw error;
   }
   if (registryIntegrity) {
-    if (registryIntegrity !== localIntegrity) throw new Error(`Registry integrity differs for ${manifest.name}@${manifest.version}; refusing to treat this rerun as published.`);
+    if (registryIntegrity !== localIntegrity)
+      throw new Error(
+        `Registry integrity differs for ${manifest.name}@${manifest.version}; refusing to treat this rerun as published.`,
+      );
     console.log(`${manifest.name}@${manifest.version} already exists with matching integrity; publication skipped.`);
   } else {
     execNpmSync(['publish', tarball, '--access', 'public'], { stdio: 'inherit' });

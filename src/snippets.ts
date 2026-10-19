@@ -31,32 +31,59 @@ const SNIPPET_SIZE_WARNING = Math.floor(SNIPPET_SIZE_LIMIT * 0.75);
 export function snippetSizeWarning(content: string, name: string): string | undefined {
   const bytes = Buffer.byteLength(content);
   if (bytes < SNIPPET_SIZE_WARNING) return undefined;
-  return formatDiagnostic('SNIPPET_SIZE_NEAR_LIMIT', `Generated snippet "${name}" is ${bytes} bytes; Shopify rejects theme files over ${SNIPPET_SIZE_LIMIT} bytes (256 kB). Reduce the number of entries or chunks, or disable \`build.modulePreload\`.`);
+  return formatDiagnostic(
+    'SNIPPET_SIZE_NEAR_LIMIT',
+    `Generated snippet "${name}" is ${bytes} bytes; Shopify rejects theme files over ${SNIPPET_SIZE_LIMIT} bytes (256 kB). Reduce the number of entries or chunks, or disable \`build.modulePreload\`.`,
+  );
 }
 
 // Shopify's inline_asset_content only inlines assets smaller than 15 KB; stay under it in decimal bytes.
 export const INLINE_ASSET_LIMIT = 15_000;
 
 export function inlineSizeWarning(entry: string, file: string, bytes: number): string {
-  return formatDiagnostic('INLINE_CSS_TOO_LARGE', `Entry "${entry}" is configured with inline, but its stylesheet "${file}" is ${bytes} bytes and Shopify only inlines assets smaller than 15 KB. A normal stylesheet link was rendered instead. Reduce the stylesheet or remove inline.`);
+  return formatDiagnostic(
+    'INLINE_CSS_TOO_LARGE',
+    `Entry "${entry}" is configured with inline, but its stylesheet "${file}" is ${bytes} bytes and Shopify only inlines assets smaller than 15 KB. A normal stylesheet link was rendered instead. Reduce the stylesheet or remove inline.`,
+  );
 }
 
-export function sourceKey(path: string, root: string): string { return relative(root, path).split(sep).join('/'); }
+export function sourceKey(path: string, root: string): string {
+  return relative(root, path).split(sep).join('/');
+}
 
-export interface ManifestTags { preloads: string[]; styles: string[]; scripts: string[] }
+export interface ManifestTags {
+  preloads: string[];
+  styles: string[];
+  scripts: string[];
+}
 
 function entryChunk(manifest: Manifest, key: string): ManifestChunk {
   const chunk = manifest[key];
-  if (!chunk) throw diagnostic('MANIFEST_ENTRY_MISSING', `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`);
+  if (!chunk)
+    throw diagnostic(
+      'MANIFEST_ENTRY_MISSING',
+      `Vite manifest is missing declared entry "${key}". Confirm that plugin-owned top-level input is not overridden and run a clean build.`,
+    );
   return chunk;
 }
 
 export function collectManifestTags(manifest: Manifest, entrySources: string[]): ManifestTags {
-  const preloads: string[] = []; const styles: string[] = []; const scripts: string[] = [];
-  const seenImports = new Set<string>(); const seenCss = new Set<string>(); const seenScripts = new Set<string>();
+  const preloads: string[] = [];
+  const styles: string[] = [];
+  const scripts: string[] = [];
+  const seenImports = new Set<string>();
+  const seenCss = new Set<string>();
+  const seenScripts = new Set<string>();
   const addStyles = (chunk: ManifestChunk): void => {
-    if (chunk.file.endsWith('.css') && !seenCss.has(chunk.file)) { seenCss.add(chunk.file); styles.push(chunk.file); }
-    for (const css of chunk.css ?? []) if (!seenCss.has(css)) { seenCss.add(css); styles.push(css); }
+    if (chunk.file.endsWith('.css') && !seenCss.has(chunk.file)) {
+      seenCss.add(chunk.file);
+      styles.push(chunk.file);
+    }
+    for (const css of chunk.css ?? [])
+      if (!seenCss.has(css)) {
+        seenCss.add(css);
+        styles.push(css);
+      }
   };
   const visitImports = (key: string): void => {
     const rootChunk = entryChunk(manifest, key);
@@ -71,7 +98,11 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
         if (seenImports.has(imported)) continue;
         seenImports.add(imported);
         const importedChunk = manifest[imported];
-        if (!importedChunk) throw diagnostic('MANIFEST_IMPORT_MISSING', `Vite manifest entry "${frame.key}" references missing imported chunk "${imported}". Run a clean build and retry.`);
+        if (!importedChunk)
+          throw diagnostic(
+            'MANIFEST_IMPORT_MISSING',
+            `Vite manifest entry "${frame.key}" references missing imported chunk "${imported}". Run a clean build and retry.`,
+          );
         stack.push({ key: imported, chunk: importedChunk, index: 0, imported: importedChunk });
         continue;
       }
@@ -84,22 +115,30 @@ export function collectManifestTags(manifest: Manifest, entrySources: string[]):
   };
   for (const source of entrySources) {
     const chunk = entryChunk(manifest, source);
-    addStyles(chunk); visitImports(source);
-    if (!seenScripts.has(chunk.file)) { seenScripts.add(chunk.file); scripts.push(chunk.file); }
+    addStyles(chunk);
+    visitImports(source);
+    if (!seenScripts.has(chunk.file)) {
+      seenScripts.add(chunk.file);
+      scripts.push(chunk.file);
+    }
   }
   return { preloads, styles, scripts };
 }
 
 type EntryAttributes = NormalizedEntryOptions['attributes'];
 
-const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+const escapeAttribute = (value: string) =>
+  value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
 /** Renders validated entry attributes in name order, each preceded by a space. */
 function renderAttributes(attributes: EntryAttributes | undefined): string {
-  return Object.keys(attributes ?? {}).sort().map((name) => {
-    const value = attributes![name];
-    return value === true ? ` ${name}` : ` ${name}="${escapeAttribute(value)}"`;
-  }).join('');
+  return Object.keys(attributes ?? {})
+    .sort()
+    .map((name) => {
+      const value = attributes![name];
+      return value === true ? ` ${name}` : ` ${name}="${escapeAttribute(value)}"`;
+    })
+    .join('');
 }
 
 const asset = (file: string) => `{{ '${file.replaceAll("'", "\\'")}' | asset_url }}`;
@@ -116,30 +155,52 @@ interface ProductionRendering {
   canInline?: (file: string, entry: string) => boolean;
 }
 
-export function renderProductionSnippet(manifest: Manifest, entries: Record<string, string>, root: string, rendering: ProductionRendering): string {
+export function renderProductionSnippet(
+  manifest: Manifest,
+  entries: Record<string, string>,
+  root: string,
+  rendering: ProductionRendering,
+): string {
   const blocks = Object.entries(entries).map(([name, path]) => {
-    const tags = rendering.aggregateCss && isStyleEntry(path)
-      ? { preloads: [], styles: [], scripts: [] }
-      : collectManifestTags(manifest, [sourceKey(path, root)]);
-    const styles = rendering.aggregateCss ? [rendering.aggregateCss, ...tags.styles.filter((file) => file !== rendering.aggregateCss)] : tags.styles;
+    const tags =
+      rendering.aggregateCss && isStyleEntry(path)
+        ? { preloads: [], styles: [], scripts: [] }
+        : collectManifestTags(manifest, [sourceKey(path, root)]);
+    const styles = rendering.aggregateCss
+      ? [rendering.aggregateCss, ...tags.styles.filter((file) => file !== rendering.aggregateCss)]
+      : tags.styles;
     const preloads = rendering.modulePreload ? tags.preloads : [];
     const entry = rendering.entryOptions?.[name];
     const attributes = renderAttributes(entry?.attributes);
     const inline = entry?.inline === true && !rendering.aggregateCss;
-    const stylesheet = (f: string) => inline && (rendering.canInline?.(f, name) ?? true)
-      ? `<style>{{ '${f.replaceAll("'", "\\'")}' | inline_asset_content }}</style>`
-      : `<link rel="stylesheet" href="${asset(f)}"${attributes}>`;
-    const lines = [...styles.map(stylesheet), ...tags.scripts.filter((f) => f.endsWith('.js')).map((f) => `<script type="module" src="${asset(f)}"${attributes}></script>`), ...preloads.map((f) => `<link rel="modulepreload" href="${asset(f)}">`)];
+    const stylesheet = (f: string) =>
+      inline && (rendering.canInline?.(f, name) ?? true)
+        ? `<style>{{ '${f.replaceAll("'", "\\'")}' | inline_asset_content }}</style>`
+        : `<link rel="stylesheet" href="${asset(f)}"${attributes}>`;
+    const lines = [
+      ...styles.map(stylesheet),
+      ...tags.scripts
+        .filter((f) => f.endsWith('.js'))
+        .map((f) => `<script type="module" src="${asset(f)}"${attributes}></script>`),
+      ...preloads.map((f) => `<link rel="modulepreload" href="${asset(f)}">`),
+    ];
     return `{% when '${name}' %}\n${lines.join('\n')}`;
   });
   return `{% comment %} Generated by vite-plugin-shopify-theme. Do not edit. {% endcomment %}\n{% case entry %}\n${blocks.join('\n')}\n{% endcase %}\n`;
 }
 
-export function developmentSnippet(origin: string, entries: Record<string, string>, root: string, entryOptions?: Record<string, NormalizedEntryOptions>): string {
+export function developmentSnippet(
+  origin: string,
+  entries: Record<string, string>,
+  root: string,
+  entryOptions?: Record<string, NormalizedEntryOptions>,
+): string {
   const blocks = Object.entries(entries).map(([name, path]) => {
     const url = `${origin}/${sourceKey(path, root)}`;
     const attributes = renderAttributes(entryOptions?.[name]?.attributes);
-    const tag = isStyleEntry(path) ? `<link rel="stylesheet" href="${url}" crossorigin="anonymous"${attributes}>` : `<script type="module" src="${url}" crossorigin="anonymous"${attributes}></script>`;
+    const tag = isStyleEntry(path)
+      ? `<link rel="stylesheet" href="${url}" crossorigin="anonymous"${attributes}>`
+      : `<script type="module" src="${url}" crossorigin="anonymous"${attributes}></script>`;
     return `{% when '${name}' %}\n${tag}`;
   });
   return `{% comment %} Temporary development file generated by vite-plugin-shopify-theme. {% endcomment %}\n{% if entry == blank %}\n<script type="module" src="${origin}/@vite/client" crossorigin="anonymous"></script>\n<script type="module" src="${origin}${HOT_RELOAD_CLIENT_PATH}" crossorigin="anonymous"></script>\n{% else %}\n{% case entry %}\n${blocks.join('\n')}\n{% endcase %}\n{% endif %}\n`;

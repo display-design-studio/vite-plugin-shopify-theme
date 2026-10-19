@@ -15,10 +15,16 @@ const commands = {
   bun: { install: ['add', '--dev'], build: ['x', 'vite', 'build'] },
 };
 
-if (!(manager in commands)) throw new Error(`Unknown package manager ${JSON.stringify(manager)}. Use npm, pnpm, yarn, or bun.`);
+if (!(manager in commands))
+  throw new Error(`Unknown package manager ${JSON.stringify(manager)}. Use npm, pnpm, yarn, or bun.`);
 
 function environment(temporary) {
-  return { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false', npm_config_cache: join(temporary, 'npm-cache') };
+  return {
+    ...process.env,
+    npm_config_audit: 'false',
+    npm_config_fund: 'false',
+    npm_config_cache: join(temporary, 'npm-cache'),
+  };
 }
 
 function run(command, args, directory, temporary) {
@@ -29,7 +35,13 @@ function run(command, args, directory, temporary) {
 
 const temporary = mkdtempSync(join(tmpdir(), `vite-plugin-shopify-theme-${manager}-consumer-`));
 try {
-  const packOutput = JSON.parse(execNpmSync(['pack', '--json', '--pack-destination', temporary], { cwd: root, encoding: 'utf8', env: environment(temporary) }));
+  const packOutput = JSON.parse(
+    execNpmSync(['pack', '--json', '--pack-destination', temporary], {
+      cwd: root,
+      encoding: 'utf8',
+      env: environment(temporary),
+    }),
+  );
   const packResult = Array.isArray(packOutput)
     ? packOutput[0]
     : packOutput?.filename
@@ -44,25 +56,53 @@ try {
   const managerCommand = manager;
   run(managerCommand, [...command.install, tarball, 'vite@8'], consumer, temporary);
   run(managerCommand, command.build, consumer, temporary);
-  const imported = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '--eval', [
-    "import plugin, { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';",
-    "console.log(JSON.stringify({ same: plugin === shopifyTheme, type: typeof plugin }));",
-  ].join('\n')], { cwd: consumer, encoding: 'utf8' }));
-  if (!imported.same || imported.type !== 'function') throw new Error('The installed public API did not import correctly.');
+  const imported = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        [
+          "import plugin, { shopifyTheme } from '@display-studio/vite-plugin-shopify-theme';",
+          'console.log(JSON.stringify({ same: plugin === shopifyTheme, type: typeof plugin }));',
+        ].join('\n'),
+      ],
+      { cwd: consumer, encoding: 'utf8' },
+    ),
+  );
+  if (!imported.same || imported.type !== 'function')
+    throw new Error('The installed public API did not import correctly.');
   const installedPackage = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme');
-  const cliHelp = execFileSync(process.execPath, [join(installedPackage, 'dist', 'cli.js'), '--help'], { cwd: consumer, encoding: 'utf8' });
-  if (!cliHelp.includes('vite-shopify-theme init') || !cliHelp.includes('vite-shopify-theme dev')) throw new Error('The installed executable is unavailable.');
-  const installedBin = join(consumer, 'node_modules', '.bin', `vite-shopify-theme${process.platform === 'win32' ? '.cmd' : ''}`);
-  const binHelp = execFileSync(installedBin, ['--help'], { cwd: consumer, encoding: 'utf8', shell: process.platform === 'win32' });
-  if (!binHelp.includes('vite-shopify-theme init') || !binHelp.includes('vite-shopify-theme dev')) throw new Error('The package-manager executable shim is unavailable.');
+  const cliHelp = execFileSync(process.execPath, [join(installedPackage, 'dist', 'cli.js'), '--help'], {
+    cwd: consumer,
+    encoding: 'utf8',
+  });
+  if (!cliHelp.includes('vite-shopify-theme init') || !cliHelp.includes('vite-shopify-theme dev'))
+    throw new Error('The installed executable is unavailable.');
+  const installedBin = join(
+    consumer,
+    'node_modules',
+    '.bin',
+    `vite-shopify-theme${process.platform === 'win32' ? '.cmd' : ''}`,
+  );
+  const binHelp = execFileSync(installedBin, ['--help'], {
+    cwd: consumer,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  if (!binHelp.includes('vite-shopify-theme init') || !binHelp.includes('vite-shopify-theme dev'))
+    throw new Error('The package-manager executable shim is unavailable.');
   const assets = join(consumer, 'assets');
   const manifest = JSON.parse(readFileSync(join(assets, 'vite-manifest.json'), 'utf8'));
   for (const source of ['frontend/entrypoints/theme.css', 'frontend/entrypoints/theme.ts']) {
-    if (!manifest[source]?.file || !existsSync(join(assets, manifest[source].file))) throw new Error(`Missing generated output for ${source}.`);
+    if (!manifest[source]?.file || !existsSync(join(assets, manifest[source].file)))
+      throw new Error(`Missing generated output for ${source}.`);
   }
   const snippet = readFileSync(join(consumer, 'snippets', 'vite-tag.liquid'), 'utf8');
-  if (!snippet.includes("{% when 'theme.css' %}") || !snippet.includes("{% when 'theme.ts' %}")) throw new Error('Generated snippet is missing explicit entries.');
-  if (!existsSync(join(assets, 'manual.txt')) || !existsSync(join(consumer, 'snippets', 'manual.liquid'))) throw new Error('A manual theme file was not preserved.');
+  if (!snippet.includes("{% when 'theme.css' %}") || !snippet.includes("{% when 'theme.ts' %}"))
+    throw new Error('Generated snippet is missing explicit entries.');
+  if (!existsSync(join(assets, 'manual.txt')) || !existsSync(join(consumer, 'snippets', 'manual.liquid')))
+    throw new Error('A manual theme file was not preserved.');
   const generated = readdirSync(assets).filter((file) => /\.(?:css|js)$/.test(file));
   if (generated.length < 2) throw new Error('Expected generated CSS and JavaScript assets.');
   console.log(`[consumer] ${manager} installed, imported, executed, and built the packed package successfully.`);

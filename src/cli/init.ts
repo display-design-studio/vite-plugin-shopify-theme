@@ -28,7 +28,8 @@ export interface InitRuntime {
 // Pinned release: `--latest` fails on shallow clones and `main` uses Liquid tags stores may not support yet.
 const skeletonUrl = 'https://github.com/Shopify/skeleton-theme.git#v1.0.0';
 const exampleEnvironment = '[environments.development]\nstore = "your-store.myshopify.com"\n';
-const placeholderSnippet = '{% comment %} Placeholder created by vite-shopify-theme init. It is replaced by `vite build` and `dev`. {% endcomment %}\n';
+const placeholderSnippet =
+  '{% comment %} Placeholder created by vite-shopify-theme init. It is replaced by `vite build` and `dev`. {% endcomment %}\n';
 const managers = ['npm', 'pnpm', 'yarn', 'bun'] as const;
 
 function detectedManager(root: string): PackageManager {
@@ -90,7 +91,8 @@ function patchedLayout(source: string, extension: string): string | undefined {
   const headIntegrated = source.includes("{% render 'vite-tag', entry: 'theme.css' %}");
   const bodyIntegrated = source.includes(`{% render 'vite-tag', entry: 'theme.${extension}' %}`);
   if (clientIntegrated && headIntegrated && bodyIntegrated) return source;
-  if ((source.match(/<\/head>/gi)?.length ?? 0) !== 1 || (source.match(/<\/body>/gi)?.length ?? 0) !== 1) return undefined;
+  if ((source.match(/<\/head>/gi)?.length ?? 0) !== 1 || (source.match(/<\/body>/gi)?.length ?? 0) !== 1)
+    return undefined;
   let output = source;
   if (!clientIntegrated || !headIntegrated) {
     const missingHeadTags = `${clientIntegrated ? '' : "  {% render 'vite-tag' %}\n"}${headIntegrated ? '' : "  {% render 'vite-tag', entry: 'theme.css' %}\n"}`;
@@ -115,12 +117,15 @@ async function defaultSelect<T extends string>(question: string, choices: readon
       if (!answer) return defaultValue;
       if (!choices.includes(answer as T)) throw new Error(`Expected one of: ${choices.join(', ')}`);
       return answer as T;
-    } finally { rl.close(); }
+    } finally {
+      rl.close();
+    }
   }
   let index = Math.max(0, choices.indexOf(defaultValue));
   const render = (first: boolean) => {
     if (!first) stdout.write(`\x1b[${choices.length}A`);
-    for (const [i, choice] of choices.entries()) stdout.write(`\x1b[2K${i === index ? '\x1b[36m❯' : ' '} ${choice}${i === index ? '\x1b[0m' : ''}\n`);
+    for (const [i, choice] of choices.entries())
+      stdout.write(`\x1b[2K${i === index ? '\x1b[36m❯' : ' '} ${choice}${i === index ? '\x1b[0m' : ''}\n`);
   };
   stdout.write(`${question} (↑/↓, enter)\n`);
   render(true);
@@ -130,11 +135,18 @@ async function defaultSelect<T extends string>(question: string, choices: readon
   try {
     return await new Promise<T>((resolvePromise, reject) => {
       const onKey = (_: string, key: { name?: string; ctrl?: boolean }) => {
-        if (key.ctrl && key.name === 'c') { stdin.off('keypress', onKey); reject(new Error('Setup cancelled.')); return; }
+        if (key.ctrl && key.name === 'c') {
+          stdin.off('keypress', onKey);
+          reject(new Error('Setup cancelled.'));
+          return;
+        }
         if (key.name === 'up' || key.name === 'k') index = (index - 1 + choices.length) % choices.length;
         else if (key.name === 'down' || key.name === 'j') index = (index + 1) % choices.length;
-        else if (key.name === 'return') { stdin.off('keypress', onKey); resolvePromise(choices[index]!); return; }
-        else return;
+        else if (key.name === 'return') {
+          stdin.off('keypress', onKey);
+          resolvePromise(choices[index]!);
+          return;
+        } else return;
         render(false);
       };
       stdin.on('keypress', onKey);
@@ -150,64 +162,101 @@ async function defaultConfirm(question: string, defaultValue: boolean) {
   try {
     const answer = (await rl.question(`${question} [${defaultValue ? 'Y/n' : 'y/N'}]: `)).trim().toLowerCase();
     return answer ? answer === 'y' || answer === 'yes' : defaultValue;
-  } finally { rl.close(); }
+  } finally {
+    rl.close();
+  }
 }
 
 export async function initialize(options: InitOptions, runtime: InitRuntime) {
   const cwd = resolve(runtime.cwd ?? process.cwd());
   const root = resolve(cwd, options.directory ?? '.');
   const log = runtime.log ?? console.log;
-  const run = runtime.run ?? ((command, args, directory) => execFileSync(command, args, { cwd: directory, stdio: 'inherit' }));
+  const run =
+    runtime.run ?? ((command, args, directory) => execFileSync(command, args, { cwd: directory, stdio: 'inherit' }));
   const select = runtime.select ?? defaultSelect;
   const confirm = runtime.confirm ?? defaultConfirm;
   const exists = existsSync(root);
   const inferredMode = exists ? 'existing' : 'new';
-  if (options.mode && options.mode !== inferredMode) throw new Error(options.mode === 'new' ? `Target already exists: ${root}` : `Existing theme not found: ${root}`);
+  if (options.mode && options.mode !== inferredMode)
+    throw new Error(options.mode === 'new' ? `Target already exists: ${root}` : `Existing theme not found: ${root}`);
   if (!exists) {
     mkdirSync(dirname(root), { recursive: true });
-    run('shopify', ['theme', 'init', basename(root), '--path', dirname(root), '--clone-url', skeletonUrl], dirname(root));
+    run(
+      'shopify',
+      ['theme', 'init', basename(root), '--path', dirname(root), '--clone-url', skeletonUrl],
+      dirname(root),
+    );
     // The clone carries Skeleton's git history; a new project should start without it.
     rmSync(join(root, '.git'), { recursive: true, force: true });
   }
-  if (!validTheme(root)) throw new Error(`Not a Shopify theme: ${root}. Expected assets, layout, and snippets directories; no files were changed.`);
+  if (!validTheme(root))
+    throw new Error(
+      `Not a Shopify theme: ${root}. Expected assets, layout, and snippets directories; no files were changed.`,
+    );
 
   const existingConfig = viteConfigNames.some((name) => existsSync(join(root, name)));
-  const language: Language = options.language ?? (options.yes || existingConfig ? 'ts' : await select<Language>('Language', ['ts', 'js'], 'ts'));
-  const packageManager = options.packageManager ?? (options.yes ? detectedManager(root) : await select('Package manager', managers, detectedManager(root)));
-  const tailwind = options.tailwind ?? (options.yes || existingConfig ? true : await confirm('Add Tailwind CSS?', true));
+  const language: Language =
+    options.language ?? (options.yes || existingConfig ? 'ts' : await select<Language>('Language', ['ts', 'js'], 'ts'));
+  const packageManager =
+    options.packageManager ??
+    (options.yes ? detectedManager(root) : await select('Package manager', managers, detectedManager(root)));
+  const tailwind =
+    options.tailwind ?? (options.yes || existingConfig ? true : await confirm('Add Tailwind CSS?', true));
   const adopted = existingConfig && hasOwnViteConfig(root, desiredFiles(language, tailwind));
-  const summary = adopted ? `Add the plugin to ${root} and keep its Vite config, entries, and layouts, using ${packageManager}?` : `Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}?`;
-  if (!options.yes && !await confirm(summary, true)) {
+  const summary = adopted
+    ? `Add the plugin to ${root} and keep its Vite config, entries, and layouts, using ${packageManager}?`
+    : `Configure ${root} with ${language.toUpperCase()}, ${packageManager}, Tailwind ${tailwind ? 'on' : 'off'}?`;
+  if (!options.yes && !(await confirm(summary, true))) {
     log('Setup cancelled.');
     return { root, cancelled: true };
   }
 
   const files = desiredFiles(language, tailwind);
   const packagePath = join(root, 'package.json');
-  const manifest = existsSync(packagePath) ? JSON.parse(readFileSync(packagePath, 'utf8')) : { name: basename(root), private: true };
+  const manifest = existsSync(packagePath)
+    ? JSON.parse(readFileSync(packagePath, 'utf8'))
+    : { name: basename(root), private: true };
   const expectedScripts = { build: 'vite build', dev: 'vite-shopify-theme dev' };
   const notes: string[] = [];
   if (!adopted) {
     for (const [name, expected] of Object.entries(expectedScripts)) {
-      if (manifest.scripts?.[name] && manifest.scripts[name] !== expected) throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
+      if (manifest.scripts?.[name] && manifest.scripts[name] !== expected)
+        throw new Error(`Refusing to replace incompatible package script ${quote(name)}: ${manifest.scripts[name]}`);
     }
-    if (manifest.type && manifest.type !== 'module') throw new Error(`Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`);
+    if (manifest.type && manifest.type !== 'module')
+      throw new Error(
+        `Refusing to change package type ${quote(String(manifest.type))}; the Vite config imports an ESM-only package.`,
+      );
   }
   const nextManifest = adopted
     ? { ...manifest, scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts } }
-    : { ...manifest, type: 'module', scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts, ...expectedScripts } };
+    : {
+        ...manifest,
+        type: 'module',
+        scripts: { 'dev:editor': 'vite-shopify-theme dev --editor', ...manifest.scripts, ...expectedScripts },
+      };
   if (adopted) {
     for (const [name, expected] of Object.entries(expectedScripts)) {
-      if (manifest.scripts?.[name] !== expected) notes.push(`Package script "${name}" was left unchanged${manifest.scripts?.[name] ? `: ${manifest.scripts[name]}` : ' (not defined)'}. Use "${expected}" to run the plugin.`);
+      if (manifest.scripts?.[name] !== expected)
+        notes.push(
+          `Package script "${name}" was left unchanged${manifest.scripts?.[name] ? `: ${manifest.scripts[name]}` : ' (not defined)'}. Use "${expected}" to run the plugin.`,
+        );
     }
-    notes.push("Add the plugin to your Vite config with one explicit entry per file that Liquid renders: shopify({ entries: { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.js': 'frontend/entrypoints/theme.js' } }).");
-    notes.push("Render the generated snippet in your layouts: {% render 'vite-tag' %} once in <head>, then {% render 'vite-tag', entry: 'theme.css' %} and {% render 'vite-tag', entry: 'theme.js' %}. The entry name is the key from `entries`.");
-    notes.push('Remove `publicDir` from the Vite config and move files from public/ to assets/ (see the cookbook page on static files). Vite 8 is required.');
+    notes.push(
+      "Add the plugin to your Vite config with one explicit entry per file that Liquid renders: shopify({ entries: { 'theme.css': 'frontend/entrypoints/theme.css', 'theme.js': 'frontend/entrypoints/theme.js' } }).",
+    );
+    notes.push(
+      "Render the generated snippet in your layouts: {% render 'vite-tag' %} once in <head>, then {% render 'vite-tag', entry: 'theme.css' %} and {% render 'vite-tag', entry: 'theme.js' %}. The entry name is the key from `entries`.",
+    );
+    notes.push(
+      'Remove `publicDir` from the Vite config and move files from public/ to assets/ (see the cookbook page on static files). Vite 8 is required.',
+    );
   }
   if (!adopted) {
     for (const [relative, contents] of files) {
       const path = join(root, relative);
-      if (existsSync(path) && readFileSync(path, 'utf8') !== contents) throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);
+      if (existsSync(path) && readFileSync(path, 'utf8') !== contents)
+        throw new Error(`Refusing to overwrite incompatible manual file: ${relative}`);
     }
     for (const [relative, contents] of files) {
       const path = join(root, relative);
@@ -222,18 +271,40 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   const examplePath = join(root, 'example.shopify.theme.toml');
   if (!existsSync(examplePath)) writeFileSync(examplePath, exampleEnvironment);
   const nextPackage = `${JSON.stringify(nextManifest, null, 2)}\n`;
-  if (!existsSync(packagePath) || readFileSync(packagePath, 'utf8') !== nextPackage) writeFileSync(packagePath, nextPackage);
+  if (!existsSync(packagePath) || readFileSync(packagePath, 'utf8') !== nextPackage)
+    writeFileSync(packagePath, nextPackage);
   const gitignorePath = join(root, '.gitignore');
-  writeFileSync(gitignorePath, mergeLines(existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '', ['node_modules/', '.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js', 'shopify.theme.toml']));
+  writeFileSync(
+    gitignorePath,
+    mergeLines(existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '', [
+      'node_modules/',
+      '.vite-shopify-theme.json',
+      '.vite-shopify-theme.lock',
+      'assets/vite-manifest.json',
+      'assets/*-????????.css',
+      'assets/*-????????.js',
+      'shopify.theme.toml',
+    ]),
+  );
   const shopifyIgnorePath = join(root, '.shopifyignore');
-  writeFileSync(shopifyIgnorePath, mergeLines(existsSync(shopifyIgnorePath) ? readFileSync(shopifyIgnorePath, 'utf8') : '', ['node_modules/*', 'frontend/*', 'vite.config.*', '.vite-shopify-theme.json', '.vite-shopify-theme.lock']));
+  writeFileSync(
+    shopifyIgnorePath,
+    mergeLines(existsSync(shopifyIgnorePath) ? readFileSync(shopifyIgnorePath, 'utf8') : '', [
+      'node_modules/*',
+      'frontend/*',
+      'vite.config.*',
+      '.vite-shopify-theme.json',
+      '.vite-shopify-theme.lock',
+    ]),
+  );
 
   const layoutPath = join(root, 'layout/theme.liquid');
   let layoutInstructions: string | undefined;
   if (!adopted && existsSync(layoutPath)) {
     const current = readFileSync(layoutPath, 'utf8');
     const next = patchedLayout(current, language);
-    if (next === undefined) layoutInstructions = `Add {% render 'vite-tag' %} and {% render 'vite-tag', entry: 'theme.css' %} before </head>, then {% render 'vite-tag', entry: 'theme.${language}' %} before </body>.`;
+    if (next === undefined)
+      layoutInstructions = `Add {% render 'vite-tag' %} and {% render 'vite-tag', entry: 'theme.css' %} before </head>, then {% render 'vite-tag', entry: 'theme.${language}' %} before </body>.`;
     else if (next !== current) writeFileSync(layoutPath, next);
   }
 
@@ -245,8 +316,14 @@ export async function initialize(options: InitOptions, runtime: InitRuntime) {
   const [command, args] = installCommand(packageManager, packages);
   run(command, [...args], root);
   if (layoutInstructions) log(layoutInstructions);
-  if (adopted) log(`Found an existing Vite config, so it, your entries, and your layouts were not changed.\n${notes.map((note) => `- ${note}`).join('\n')}`);
+  if (adopted)
+    log(
+      `Found an existing Vite config, so it, your entries, and your layouts were not changed.\n${notes.map((note) => `- ${note}`).join('\n')}`,
+    );
   log(`Configured Shopify theme at ${root}`);
-  if (!existsSync(join(root, 'shopify.theme.toml'))) log('Next: copy example.shopify.theme.toml to shopify.theme.toml and set your store; `dev` then runs `shopify theme dev --environment development`.');
+  if (!existsSync(join(root, 'shopify.theme.toml')))
+    log(
+      'Next: copy example.shopify.theme.toml to shopify.theme.toml and set your store; `dev` then runs `shopify theme dev --environment development`.',
+    );
   return { root, cancelled: false, layoutInstructions, adopted };
 }

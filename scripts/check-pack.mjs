@@ -82,35 +82,72 @@ export function validateMetadata(manifest) {
   deepStrictEqual(manifest.peerDependencies, { vite: '^8.0.0' }, 'Vite peer range differs');
   deepStrictEqual(manifest.bin, { 'vite-shopify-theme': './dist/cli.js' }, 'CLI executable differs');
   strictEqual('dependencies' in manifest, false, 'package must not declare runtime dependencies');
-  deepStrictEqual(manifest.publishConfig, { access: 'public', registry: 'https://registry.npmjs.org/' }, 'publish configuration differs');
+  deepStrictEqual(
+    manifest.publishConfig,
+    { access: 'public', registry: 'https://registry.npmjs.org/' },
+    'publish configuration differs',
+  );
   strictEqual(manifest.scripts?.prepublishOnly, 'npm run check', 'prepublishOnly guard differs');
-  deepStrictEqual(manifest.repository, {
-    type: 'git',
-    url: 'git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git',
-  }, 'repository metadata differs');
-  strictEqual(manifest.homepage, 'https://display-design-studio.github.io/vite-plugin-shopify-theme/', 'homepage metadata differs');
-  deepStrictEqual(manifest.bugs, { url: 'https://github.com/display-design-studio/vite-plugin-shopify-theme/issues' }, 'issue tracker metadata differs');
+  deepStrictEqual(
+    manifest.repository,
+    {
+      type: 'git',
+      url: 'git+https://github.com/display-design-studio/vite-plugin-shopify-theme.git',
+    },
+    'repository metadata differs',
+  );
+  strictEqual(
+    manifest.homepage,
+    'https://display-design-studio.github.io/vite-plugin-shopify-theme/',
+    'homepage metadata differs',
+  );
+  deepStrictEqual(
+    manifest.bugs,
+    { url: 'https://github.com/display-design-studio/vite-plugin-shopify-theme/issues' },
+    'issue tracker metadata differs',
+  );
   for (const keyword of ['vite-plugin', 'shopify', 'liquid', 'hmr']) {
     strictEqual(manifest.keywords?.includes(keyword), true, `required keyword ${JSON.stringify(keyword)} is missing`);
   }
   deepStrictEqual(Object.keys(manifest.exports ?? {}), ['.'], 'only the root package subpath may be exported');
-  deepStrictEqual(manifest.exports['.'], {
-    types: './dist/index.d.ts',
-    import: './dist/index.js',
-  }, 'root export map differs');
+  deepStrictEqual(
+    manifest.exports['.'],
+    {
+      types: './dist/index.d.ts',
+      import: './dist/index.js',
+    },
+    'root export map differs',
+  );
 }
 
 export function validateImport(packageDirectory) {
   const packageName = JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8')).name;
   const consumer = dirname(dirname(packageDirectory));
-  const result = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '--eval', [
-    `import * as module from ${JSON.stringify(packageName)};`,
-    'console.log(JSON.stringify({ exports: Object.keys(module).sort(), sameDefault: module.default === module.shopifyTheme }));',
-  ].join('\n')], { cwd: consumer, encoding: 'utf8' }));
+  const result = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        [
+          `import * as module from ${JSON.stringify(packageName)};`,
+          'console.log(JSON.stringify({ exports: Object.keys(module).sort(), sameDefault: module.default === module.shopifyTheme }));',
+        ].join('\n'),
+      ],
+      { cwd: consumer, encoding: 'utf8' },
+    ),
+  );
   deepStrictEqual(result.exports, expectedRuntimeExports, 'runtime export list differs');
   strictEqual(result.sameDefault, true, 'default export must be identical to shopifyTheme');
-  const cli = execFileSync(process.execPath, [join(packageDirectory, 'dist', 'cli.js'), '--help'], { cwd: consumer, encoding: 'utf8' });
-  strictEqual(cli.includes('vite-shopify-theme init') && cli.includes('vite-shopify-theme dev'), true, 'CLI help is unavailable');
+  const cli = execFileSync(process.execPath, [join(packageDirectory, 'dist', 'cli.js'), '--help'], {
+    cwd: consumer,
+    encoding: 'utf8',
+  });
+  strictEqual(
+    cli.includes('vite-shopify-theme init') && cli.includes('vite-shopify-theme dev'),
+    true,
+    'CLI help is unavailable',
+  );
 
   const consumerRequire = createRequire(join(consumer, 'package.json'));
   for (const subpath of [`${packageName}/dist/index.js`, `${packageName}/dist/cli.js`, `${packageName}/package.json`]) {
@@ -118,7 +155,10 @@ export function validateImport(packageDirectory) {
       consumerRequire.resolve(subpath);
     } catch (error) {
       if (error?.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') continue;
-      throw new Error(`internal subpath ${JSON.stringify(subpath)} failed with ${error?.code ?? 'an unexpected error'}`, { cause: error });
+      throw new Error(
+        `internal subpath ${JSON.stringify(subpath)} failed with ${error?.code ?? 'an unexpected error'}`,
+        { cause: error },
+      );
     }
     throw new Error(`internal subpath ${JSON.stringify(subpath)} is importable`);
   }
@@ -140,36 +180,51 @@ export async function checkPackage() {
         env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
       });
       const parsed = JSON.parse(raw);
-      const result = Array.isArray(parsed)
-        ? parsed[0]
-        : parsed?.filename
-          ? parsed
-          : Object.values(parsed ?? {})[0];
+      const result = Array.isArray(parsed) ? parsed[0] : parsed?.filename ? parsed : Object.values(parsed ?? {})[0];
       if (!result?.filename || !Array.isArray(result.files)) throw new Error('npm pack returned an invalid manifest');
       validateFiles(result.files.map(({ path }) => path));
       return result;
     });
 
-    writeFileSync(join(consumer, 'package.json'), '{"name":"package-contract-consumer","private":true,"type":"module"}\n');
-    stage('install', () => execNpmSync([
-      'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
-      '--legacy-peer-deps', join(packDirectory, pack.filename),
-    ], {
-      cwd: consumer,
-      stdio: 'pipe',
-      env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
-    }));
+    writeFileSync(
+      join(consumer, 'package.json'),
+      '{"name":"package-contract-consumer","private":true,"type":"module"}\n',
+    );
+    stage('install', () =>
+      execNpmSync(
+        [
+          'install',
+          '--offline',
+          '--ignore-scripts',
+          '--no-audit',
+          '--no-fund',
+          '--package-lock=false',
+          '--legacy-peer-deps',
+          join(packDirectory, pack.filename),
+        ],
+        {
+          cwd: consumer,
+          stdio: 'pipe',
+          env: { ...process.env, npm_config_cache: cache, npm_config_dry_run: 'false' },
+        },
+      ),
+    );
 
     const packageDirectory = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme');
     stage('metadata', () => {
       if (!existsSync(packageDirectory)) throw new Error('installed package is missing');
       validateMetadata(JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8')));
-      strictEqual(readFileSync(join(packageDirectory, 'dist', 'index.d.ts'), 'utf8'), expectedTypeEntrypoint,
-        'public declaration exports differ');
+      strictEqual(
+        readFileSync(join(packageDirectory, 'dist', 'index.d.ts'), 'utf8'),
+        expectedTypeEntrypoint,
+        'public declaration exports differ',
+      );
     });
     await stageAsync('import', () => validateImport(packageDirectory));
 
-    console.log(`Package contract passed: ${pack.files.length} files, ${pack.size} bytes, installed and imported offline.`);
+    console.log(
+      `Package contract passed: ${pack.files.length} files, ${pack.size} bytes, installed and imported offline.`,
+    );
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }

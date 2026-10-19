@@ -1,4 +1,6 @@
-export interface OutputStyle { color: boolean }
+export interface OutputStyle {
+  color: boolean;
+}
 
 /** Colors only on an interactive terminal; `NO_COLOR`, `CI`, a dumb terminal, or piped output get plain text. */
 export function outputStyle(env: NodeJS.ProcessEnv, isTTY: boolean): OutputStyle {
