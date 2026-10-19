@@ -31,7 +31,7 @@ The developer cannot tell at a glance which mode is running, which store is targ
 - Parsing, filtering, or re-rendering Shopify CLI output. It has no machine-readable mode (`shopify theme dev --help` offers `--no-color`, `--verbose`, `--notify`, and `--error-overlay` only), its text changes between versions, and capturing it through a pipe breaks its interactive keys and login prompts. A pseudo-terminal would need a runtime dependency.
 - A full-screen or interactive dashboard.
 - Reimplementing Shopify CLI logic, such as how it reads environments.
-- Changing Vite's own logging.
+- Changing Vite's own logging beyond running it at the warn level (see "Quieter Vite output").
 - Tunnel management or deployment.
 
 ## Proposal
@@ -69,7 +69,15 @@ One line per build, with a stable prefix and timing, from numbers the plugin alr
 [shopify-theme] build failed · keeping the last good output
 ```
 
-A failed build keeps showing Vite's own error above this line.
+A failed build is followed by Vite's own error.
+
+### Quieter Vite output
+
+Vite's banner (`VITE ready in …`, `Local`, `Network`, `press h + enter`), the plugin's `Development assets ready` line, and the per-build chunk tables repeat what the header and the build lines already say, and nobody opens `localhost:5173`. Under `vite-shopify-theme dev`, Vite runs with `--logLevel warn`, so only warnings and errors remain. It costs one argument and no dependency:
+
+- It applies unless the caller passes their own `--logLevel` (or `-l`) or `--raw`.
+- The CLI sets `VITE_SHOPIFY_THEME_CLI=1` for the Vite process, and the plugin then writes its own informational lines (build lines and `diagnostics: true` output) straight to stdout, because they would otherwise be filtered out. Outside the command, such as under a plain `vite build --watch`, they still go through Vite's logger.
+- What is hidden: `[vite] hmr update` and page-reload lines, the `Port … is in use` notice (the plugin still uses the real port), the `press h` hint (the shortcuts keep working), and the size table in editor mode. `--raw` or `dev --logLevel info` brings them back.
 
 ### Setup hint (editor mode only)
 
@@ -122,7 +130,7 @@ Terminal text is not a stable interface except diagnostic codes (`[shopify-theme
 Revisit only with a concrete user report.
 
 - **Shopify CLI version from `shopify version`.** An extra process on every startup, for a fact available on demand.
-- **An `assets` row and a quieter Vite banner in HMR mode.** Needs CLI-to-plugin signaling and an override of Vite's URL printing for a cosmetic gain; the banner is harmless.
+- **An `assets` row in HMR mode.** The origin is only known once Vite has started, and it is not information a Shopify developer acts on.
 - **Expanding `[environments.development]` into flags to avoid Shopify's second `info` panel.** It duplicates Shopify CLI's environment handling, can drift between versions, and needs its own compatibility tests, only to remove one panel.
 - **A header preview URL.** Shopify CLI prints it in its own panel.
 - **Preflight hints for `.shopifyignore` patterns and the old render syntax.** Shopify CLI already warns about the first, and the second is covered by the setup documentation.

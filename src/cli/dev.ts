@@ -124,7 +124,10 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     write(formatHeader({ version: runtime.version!, mode: editor ? 'editor' : 'hmr', vite: viteManifest.version, node: process.version, shopify: shopifyVersion, ...describeTarget(cwd, themeArguments, env), liveReload: flagValue(themeArguments, ['--live-reload']) }, style) + hint);
   }
   // Editor mode builds and syncs hashed assets instead of serving them from the dev server.
-  const vite = spawnProcess(process.execPath, [viteBin, ...(editor ? ['build', '--watch'] : []), ...viteArguments], { cwd, stdio: 'inherit' });
+  // Vite's banner, URLs, and per-build tables repeat what the header and the plugin's build lines already say.
+  // Warnings and errors still print, and the plugin writes its own lines to stdout when it runs under this command.
+  const quiet = !raw && !viteArguments.some((argument) => argument === '-l' || argument === '--logLevel' || argument.startsWith('--logLevel='));
+  const vite = spawnProcess(process.execPath, [viteBin, ...(editor ? ['build', '--watch'] : []), ...viteArguments, ...(quiet ? ['--logLevel', 'warn'] : [])], { cwd, stdio: 'inherit', ...(quiet ? { env: { ...env, VITE_SHOPIFY_THEME_CLI: '1' } } : {}) });
   const children: ChildProcess[] = [vite];
   let closing = false;
   const close = (signal: NodeJS.Signals = 'SIGTERM') => {

@@ -31,12 +31,18 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let generation = 0;
   let buildStartedAt = 0;
   let buildDuration = 0;
+  // Under `vite-shopify-theme dev` Vite runs at the warn level to keep its banner and tables out of the way,
+  // so the plugin's own informational lines go straight to stdout instead of through the logger.
+  const emit = (line: string) => {
+    if (process.env.VITE_SHOPIFY_THEME_CLI !== '1') config.logger.info(line);
+    else if (config.logLevel !== 'silent') console.log(line);
+  };
   const reportBuild = (report: Parameters<typeof formatBuildLine>[0]) => {
-    if (watching()) config.logger.info(formatBuildLine(report, outputStyle(process.env, Boolean(process.stdout.isTTY))));
+    if (watching()) emit(formatBuildLine(report, outputStyle(process.env, Boolean(process.stdout.isTTY))));
   };
   const watching = () => config.command === 'build' && config.build?.watch != null;
   const logDiagnostic = (event: DiagnosticEvent, message: string) => {
-    if (options.diagnostics) config.logger.info(`[shopify-theme:diagnostic:${event}] ${message}`);
+    if (options.diagnostics) emit(`[shopify-theme:diagnostic:${event}] ${message}`);
   };
   const restoreDevelopmentSnippet = () => {
     if (!development || !existsSync(options.snippet)) return false;
