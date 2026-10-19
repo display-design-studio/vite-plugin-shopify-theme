@@ -59,6 +59,6 @@ The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals, stops t
 
 Set `devOrigin` to an HTTPS origin when a tunnel is managed elsewhere and you want HMR inside the Theme Editor. During development the snippet contains HMR and reload clients; the previous snippet is restored at shutdown. A live or uncertain lock fails safely.
 
-Shopify CLI flags can be supplied through its documented environment variables. In particular, an existing `SHOPIFY_FLAG_PATH` is passed through unchanged, which is useful when the command runs from a workspace root. Positional arguments after `dev` belong to Vite; they are not forwarded to Shopify CLI.
+Shopify CLI flags can be supplied through its documented environment variables. In particular, an existing `SHOPIFY_FLAG_PATH` is passed through unchanged, which is useful when the command runs from a workspace root. Shopify CLI reads npm's `INIT_CWD` before the real working directory, so the command sets `INIT_CWD` to the directory it runs in; a script started from a workspace root or with `npm --prefix` then still finds the theme and its `shopify.theme.toml`. Positional arguments after `dev` belong to Vite; they are not forwarded to Shopify CLI.
 
 The command exits when either child exits and terminates the sibling. Spawn errors and non-zero exits produce a failing command. `SIGINT` and `SIGTERM` are forwarded so the plugin can restore the exact pre-development snippet before the processes finish.

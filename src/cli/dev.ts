@@ -155,9 +155,13 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     if (closing) return;
     if (!ready) console.warn(`vite-shopify-theme: Vite did not write the ${editor ? 'first build' : 'development snippet'} within ${(editor ? editorReadyTimeout : readyTimeout) / 1000}s; starting Shopify CLI anyway.`);
     if (decorate) write(formatShopifyRule(shopifyVersion, style));
+    // Shopify CLI resolves its working directory from npm's INIT_CWD before the real one, so a script started
+    // from another directory (a workspace root, `npm --prefix`) would make it look for the theme and
+    // shopify.theme.toml there. An explicit --path or SHOPIFY_FLAG_PATH still wins inside Shopify CLI.
+    const shopifyEnv = { ...env, INIT_CWD: cwd };
     const shopify = platform === 'win32'
-      ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env, stdio: 'inherit', shell: true })
-      : spawnProcess('shopify', themeArguments, { cwd, env, stdio: 'inherit' });
+      ? spawnProcess(`shopify ${themeArguments.map(shellQuote).join(' ')}`, { cwd, env: shopifyEnv, stdio: 'inherit', shell: true })
+      : spawnProcess('shopify', themeArguments, { cwd, env: shopifyEnv, stdio: 'inherit' });
     children.push(shopify);
     watch(shopify);
   })();

@@ -239,6 +239,8 @@ describe('development CLI', () => {
     expect(spawned[0].command).toBe(process.execPath);
     expect(spawned[0].args).toEqual([expect.stringMatching(/vite[\\/]bin[\\/]vite\.js$/), '--host', '0.0.0.0']);
     expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
+    // npm sets INIT_CWD to where the script was started; Shopify CLI must look in the directory `dev` runs in.
+    expect(spawned[1].options.env.INIT_CWD).toBe(root);
     signals.get('SIGINT')?.();
     expect(result.children.every((child) => child.killed)).toBe(true);
   });
@@ -281,6 +283,18 @@ describe('development CLI', () => {
     expect(shopifyThemeArguments(root, ['-e', 'staging'], {})).toEqual(['theme', 'dev', '-e', 'staging']);
     expect(shopifyThemeArguments(root, ['--environment=staging'], {})).toEqual(['theme', 'dev', '--environment=staging']);
     expect(shopifyThemeArguments(root, [], { SHOPIFY_FLAG_ENVIRONMENT: 'staging' })).toEqual(['theme', 'dev']);
+  });
+
+  it('points Shopify CLI at the directory dev runs in, not where npm started the script, and keeps an explicit path', async () => {
+    for (const platform of ['linux', 'win32'] as const) {
+      const calls: any[] = [];
+      const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+      const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+      await runDevelopment([], { cwd: root, platform, spawn, ready: async () => true, onSignal: vi.fn(), env: { INIT_CWD: '/workspace-root', SHOPIFY_FLAG_PATH: '/explicit/theme' } }).started;
+      const options = calls[1].at(-1);
+      expect(options.env.INIT_CWD, platform).toBe(root);
+      expect(options.env.SHOPIFY_FLAG_PATH, platform).toBe('/explicit/theme');
+    }
   });
 
   it('quotes Shopify arguments for the Windows shell', async () => {
