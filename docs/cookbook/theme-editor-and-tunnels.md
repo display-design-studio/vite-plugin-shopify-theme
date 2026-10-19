@@ -36,7 +36,9 @@ Use `dev` for day-to-day work in the local preview and `dev:editor` when you edi
 
 The default may change once editor mode has seen wider use.
 
-## Alternative: HMR through a tunnel
+## Alternative: HMR through a tunnel (deprecated)
+
+> `devOrigin` and this tunnel setup are deprecated. The plugin warns with `DEV_ORIGIN_DEPRECATED` when `devOrigin` is set, and the option is removed in 1.0.0. Use editor mode above, which needs no tunnel. If you rely on a tunnel for something editor mode cannot do, say so in an issue before 1.0.0.
 
 Use this when you need instant HMR inside the editor and are willing to manage a tunnel. Route an HTTPS tunnel to Vite and tell the plugin its public origin. The plugin does not create or stop the tunnel.
 

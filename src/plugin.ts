@@ -176,6 +176,9 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     },
     configResolved(resolved) {
       config = resolved;
+      if (options.devOrigin && resolved.command === 'serve') {
+        resolved.logger.warnOnce(formatDiagnostic('DEV_ORIGIN_DEPRECATED', 'devOrigin and the HTTPS tunnel setup are deprecated and will be removed in 1.0.0. Use `vite-shopify-theme dev --editor` (npm run dev:editor) for a live Theme Editor without a tunnel: https://display-design-studio.github.io/vite-plugin-shopify-theme/cookbook/theme-editor-and-tunnels'));
+      }
       logDiagnostic('CONFIG_RESOLVED', `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`);
     },
     buildStart() {

@@ -51,12 +51,13 @@ function devServer(root: string, devOrigin?: string, configuredEntries: Record<s
   const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
   const info = vi.fn();
   const warn = vi.fn();
-  plugin.configResolved({ command: 'serve', logger: { info, warn } });
+  const warnOnce = vi.fn();
+  plugin.configResolved({ command: 'serve', logger: { info, warn, warnOnce } });
   const httpServer = new EventEmitter() as EventEmitter & { address(): { address: string; family: string; port: number } };
   httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
   const server = { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer };
   plugin.configureServer(server);
-  return { plugin, contribution, httpServer, info, warn };
+  return { plugin, contribution, httpServer, info, warn, warnOnce };
 }
 
 describe('isolated builds', () => {
@@ -462,7 +463,7 @@ describe('development server without a listening phase', () => {
   const middlewareServer = (root: string, devOrigin?: string) => {
     const plugin = shopifyTheme({ entries, themeRoot: root, devOrigin }) as any;
     const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
-    plugin.configResolved({ command: 'serve', logger: { info: vi.fn(), warn: vi.fn() } });
+    plugin.configResolved({ command: 'serve', logger: { info: vi.fn(), warn: vi.fn(), warnOnce: vi.fn() } });
     return { plugin, server: { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer: null } };
   };
 
@@ -471,6 +472,22 @@ describe('development server without a listening phase', () => {
     const { plugin, server } = middlewareServer(root);
     expect(() => plugin.configureServer(server)).toThrow(/\[shopify-theme:DEV_ORIGIN_UNAVAILABLE\].*middleware mode/);
     expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it('warns once that devOrigin is deprecated, only when it is set and Vite serves', () => {
+    const root = fixture();
+    const configured = devServer(root, 'https://vite.example.test');
+    expect(configured.warnOnce).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^\[shopify-theme:DEV_ORIGIN_DEPRECATED\] devOrigin and the HTTPS tunnel setup are deprecated and will be removed in 1\.0\.0\. Use `vite-shopify-theme dev --editor`/));
+    configured.plugin.closeServer?.();
+    const plain = devServer(fixture());
+    expect(plain.warnOnce).not.toHaveBeenCalled();
+    plain.plugin.closeServer?.();
+    const buildRoot = fixture();
+    const building = shopifyTheme({ entries, themeRoot: buildRoot, devOrigin: 'https://vite.example.test' }) as any;
+    building.config({ root: buildRoot }, { command: 'build', mode: 'production' });
+    const warnOnce = vi.fn();
+    building.configResolved({ command: 'build', logger: { info: vi.fn(), warn: vi.fn(), warnOnce } });
+    expect(warnOnce).not.toHaveBeenCalled();
   });
 
   it('activates immediately with an explicit devOrigin and restores on closeServer', () => {

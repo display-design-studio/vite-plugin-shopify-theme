@@ -4,6 +4,10 @@ All notable changes to this package are documented here.
 
 ## Unreleased
 
+### Deprecated
+
+- `devOrigin` and the HTTPS tunnel recipe. The plugin prints a `DEV_ORIGIN_DEPRECATED` warning when `devOrigin` is set under `vite`, the option is marked `@deprecated` in its types, and the docs point to `dev --editor`, which gives a live Theme Editor without a tunnel. `devOrigin` is removed in 1.0.0.
+
 ### Fixed
 
 - `dev` and `dev --editor` now start Shopify CLI with npm's `INIT_CWD` set to the directory they run in. Shopify CLI reads `INIT_CWD` before the real working directory, so a script started from a workspace root or with `npm --prefix` made it look for the theme and `shopify.theme.toml` in the wrong place (`Environment file not found`, `doesn't seem like you're running this command in a theme directory`). An explicit `--path` or `SHOPIFY_FLAG_PATH` still wins.
@@ -15,7 +19,7 @@ All notable changes to this package are documented here.
 ### Added
 
 - `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).
-- A `━━ Shopify CLI ━━━━` rule marks where Shopify CLI's output begins, and watch builds (`dev --editor` or `vite build --watch`) print one line each: `[shopify-theme] build ok · 2 entries · 312 ms · snippet written` or `snippet unchanged`, and `build failed · keeping the last good output` after a failed build. In editor mode, a hint appears when `.gitignore` lacks the generated-file patterns that make Tailwind CSS rebuild in a loop (RFC 0003, part 2).
+- Watch builds (`dev --editor` or `vite build --watch`) print one line each: `[shopify-theme] build ok · 2 entries · 312 ms · snippet written` or `snippet unchanged`, and `build failed · keeping the last good output` after a failed build. In editor mode, a hint appears when `.gitignore` lacks the generated-file patterns that make Tailwind CSS rebuild in a loop (RFC 0003, part 2).
 
 ## 0.6.1
 

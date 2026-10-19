@@ -45,13 +45,6 @@ export function formatFooter(input: FooterInput, style: OutputStyle): string {
   return `\n${stopped} ${detail}\n`;
 }
 
-/** One rule that opens Shopify CLI's output, which is passed through unchanged. */
-export function formatShopifyRule(version: string | undefined, style: OutputStyle, width = 72): string {
-  const label = `Shopify CLI${version ? ` ${version}` : ''}`;
-  const tail = '━'.repeat(Math.max(4, width - label.length - 4));
-  return `${paint(style, 'blue', paint(style, 'bold', `━━ ${label} ${tail}`))}\n`;
-}
-
 const generatedPatterns = ['.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js'];
 const wholeAssets = ['assets', 'assets/', '/assets', '/assets/', 'assets/*', '/assets/*'];
 
