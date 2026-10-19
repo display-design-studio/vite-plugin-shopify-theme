@@ -850,7 +850,8 @@ describe('terminal output', () => {
     expect(missingGeneratedPatterns('.vite-shopify-theme.json\r\n.vite-shopify-theme.lock\r\nassets/vite-manifest.json\r\nassets/*-????????.css\r\nassets/*-????????.js\r\n')).toEqual([]);
     expect(missingGeneratedPatterns('.vite-shopify-theme.json\n.vite-shopify-theme.lock\nassets/\n')).toEqual([]);
     expect(formatGitignoreHint([], plain)).toBe('');
-    expect(formatGitignoreHint(['assets/*-????????.js'], plain)).toContain('lacks a generated-file pattern (assets/*-????????.js); Tailwind CSS then rebuilds in a loop.');
+    expect(formatGitignoreHint(['assets/*-????????.js'], plain)).toContain('lacks a generated-file pattern; Tailwind CSS then rebuilds in a loop.');
+    expect(formatGitignoreHint(missingGeneratedPatterns(undefined), plain)).toContain('.gitignore lacks 5 generated-file patterns; Tailwind CSS then rebuilds in a loop. The patterns are listed here:');
   });
 
   function session(argumentsList: string[], options: { lock?: boolean; version?: string | undefined } = {}) {
@@ -901,7 +902,7 @@ describe('terminal output', () => {
 
   it('hints about missing .gitignore patterns in editor mode only', async () => {
     const editor = session(['--editor']);
-    expect(editor.events[0]).toContain('hint  .gitignore lacks generated-file patterns');
+    expect(editor.events[0]).toContain('hint  .gitignore lacks 5 generated-file patterns');
     expect(editor.events[0]).toContain('troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again');
     expect(session([]).events[0]).not.toContain('hint');
     expect(session(['--editor', '--raw']).events.filter((event) => event.startsWith('write:'))).toEqual([]);

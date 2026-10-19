@@ -66,5 +66,5 @@ export const troubleshootingUrl = 'https://display-design-studio.github.io/vite-
 
 export function formatGitignoreHint(missing: string[], style: OutputStyle): string {
   if (!missing.length) return '';
-  return `  ${paint(style, 'yellow', 'hint')}  .gitignore lacks ${missing.length === 1 ? 'a generated-file pattern' : 'generated-file patterns'} (${missing.join(', ')}); Tailwind CSS then rebuilds in a loop.\n        ${paint(style, 'dim', troubleshootingUrl)}\n\n`;
+  return `  ${paint(style, 'yellow', 'hint')}  .gitignore lacks ${missing.length === 1 ? 'a generated-file pattern' : `${missing.length} generated-file patterns`}; Tailwind CSS then rebuilds in a loop. The patterns are listed here:\n        ${paint(style, 'dim', troubleshootingUrl)}\n\n`;
 }
