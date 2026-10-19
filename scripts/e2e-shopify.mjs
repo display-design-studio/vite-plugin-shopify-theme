@@ -16,7 +16,9 @@ const requiredEnvironment = ['SHOPIFY_FLAG_STORE', 'SHOPIFY_CLI_THEME_TOKEN'];
 const missingEnvironment = requiredEnvironment.filter((name) => !process.env[name]?.trim());
 
 if (missingEnvironment.length) {
-  fail(`Missing required environment variable${missingEnvironment.length === 1 ? '' : 's'}: ${missingEnvironment.join(', ')}. See the end-to-end test documentation in README.md.`);
+  fail(
+    `Missing required environment variable${missingEnvironment.length === 1 ? '' : 's'}: ${missingEnvironment.join(', ')}. See the end-to-end test documentation in README.md.`,
+  );
 }
 if (vitePort === shopifyPort) fail('SHOPIFY_VITE_PORT and SHOPIFY_THEME_PORT must use different ports.');
 
@@ -42,10 +44,20 @@ try {
   delete developmentEnvironment.SHOPIFY_VITE_ORIGIN;
   developmentEnvironment.PATH = `${join(themeRoot, 'node_modules', '.bin')}${process.platform === 'win32' ? ';' : ':'}${developmentEnvironment.PATH ?? ''}`;
   developmentEnvironment.SHOPIFY_FLAG_PATH = themeRoot;
-  const development = startProcess('vite-shopify-theme dev', process.execPath, [cliBin, 'dev', '--host', host, '--port', String(vitePort), '--strictPort', '--clearScreen', 'false'], {
-    cwd: themeRoot,
-    env: { ...developmentEnvironment, NO_COLOR: '1', SHOPIFY_CLI_NO_ANALYTICS: '1', SHOPIFY_FLAG_PORT: String(shopifyPort) },
-  });
+  const development = startProcess(
+    'vite-shopify-theme dev',
+    process.execPath,
+    [cliBin, 'dev', '--host', host, '--port', String(vitePort), '--strictPort', '--clearScreen', 'false'],
+    {
+      cwd: themeRoot,
+      env: {
+        ...developmentEnvironment,
+        NO_COLOR: '1',
+        SHOPIFY_CLI_NO_ANALYTICS: '1',
+        SHOPIFY_FLAG_PORT: String(shopifyPort),
+      },
+    },
+  );
   await waitForResponse(`http://${host}:${vitePort}/@vite/client`, development, 'Vite');
   log(`Vite is ready at http://${host}:${vitePort}.`);
 
@@ -106,7 +118,11 @@ async function assertPortAvailable(label, port) {
 }
 
 function startProcess(label, command, args, options) {
-  const child = spawn(command, args, { ...options, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(command, args, {
+    ...options,
+    detached: process.platform !== 'win32',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   const output = [];
   const remember = (chunk, stream) => {
     const text = chunk.toString();
@@ -124,21 +140,29 @@ function startProcess(label, command, args, options) {
 }
 
 async function waitForResponse(url, processState, label) {
-  await poll(processState, async () => {
-    const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
-    if (!response.ok) throw new Error(`${label} returned HTTP ${response.status}.`);
-    return response;
-  }, `${label} did not become ready at ${url}`);
+  await poll(
+    processState,
+    async () => {
+      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      if (!response.ok) throw new Error(`${label} returned HTTP ${response.status}.`);
+      return response;
+    },
+    `${label} did not become ready at ${url}`,
+  );
 }
 
 async function waitForPreview(url, processState) {
-  return poll(processState, async () => {
-    const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(5_000) });
-    if (!response.ok) throw new Error(`Shopify preview returned HTTP ${response.status}.`);
-    const html = await response.text();
-    developmentAssetUrls(html);
-    return html;
-  }, `Shopify preview did not render the Vite development tags at ${url}`);
+  return poll(
+    processState,
+    async () => {
+      const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(5_000) });
+      if (!response.ok) throw new Error(`Shopify preview returned HTTP ${response.status}.`);
+      const html = await response.text();
+      developmentAssetUrls(html);
+      return html;
+    },
+    `Shopify preview did not render the Vite development tags at ${url}`,
+  );
 }
 
 async function poll(processState, operation, timeoutMessage) {
@@ -146,29 +170,37 @@ async function poll(processState, operation, timeoutMessage) {
   let lastError;
   while (Date.now() < deadline) {
     const result = await Promise.race([
-      operation().catch((error) => { lastError = error; }),
+      operation().catch((error) => {
+        lastError = error;
+      }),
       processState.exited.then(({ code, signal }) => {
-        throw new Error(`${processState.label} exited before becoming ready (${signal ? `signal ${signal}` : `code ${code}`}).${diagnosticOutput(processState)}`);
+        throw new Error(
+          `${processState.label} exited before becoming ready (${signal ? `signal ${signal}` : `code ${code}`}).${diagnosticOutput(processState)}`,
+        );
       }),
     ]);
     if (result !== undefined) return result;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`${timeoutMessage} within ${timeoutMs}ms.${lastError ? ` Last error: ${lastError.message}` : ''}${diagnosticOutput(processState)}`);
+  throw new Error(
+    `${timeoutMessage} within ${timeoutMs}ms.${lastError ? ` Last error: ${lastError.message}` : ''}${diagnosticOutput(processState)}`,
+  );
 }
 
 function developmentAssetUrls(html) {
-  const urls = [...html.matchAll(/<(?:link|script)\b[^>]*?\b(?:href|src)=(['"])(.*?)\1[^>]*>/gis)]
-    .map((match) => match[2].replaceAll('&amp;', '&'));
+  const urls = [...html.matchAll(/<(?:link|script)\b[^>]*?\b(?:href|src)=(['"])(.*?)\1[^>]*>/gis)].map((match) =>
+    match[2].replaceAll('&amp;', '&'),
+  );
   const expectedOrigin = `http://${host}:${vitePort}`;
-  const findEntry = (entry) => urls.find((value) => {
-    try {
-      const url = new URL(value);
-      return url.origin === expectedOrigin && url.pathname === `/frontend/entrypoints/${entry}`;
-    } catch {
-      return false;
-    }
-  });
+  const findEntry = (entry) =>
+    urls.find((value) => {
+      try {
+        const url = new URL(value);
+        return url.origin === expectedOrigin && url.pathname === `/frontend/entrypoints/${entry}`;
+      } catch {
+        return false;
+      }
+    });
   const css = findEntry('theme.css');
   const script = findEntry('theme.ts');
   if (!css || !script) throw new Error('Expected development tags for theme.css and theme.ts were not present.');
@@ -189,24 +221,29 @@ function diagnosticOutput(processState) {
 
 async function stopChildren() {
   if (stopping) return stopping;
-  stopping = Promise.all(children.map(async ({ child, exited }) => {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-    try {
-      if (process.platform === 'win32') child.kill('SIGTERM');
-      else process.kill(-child.pid, 'SIGTERM');
-    } catch (error) {
-      if (error?.code !== 'ESRCH') throw error;
-    }
-    const stopped = await Promise.race([exited.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 5_000))]);
-    if (!stopped) {
+  stopping = Promise.all(
+    children.map(async ({ child, exited }) => {
+      if (child.exitCode !== null || child.signalCode !== null) return;
       try {
-        if (process.platform === 'win32') child.kill('SIGKILL');
-        else process.kill(-child.pid, 'SIGKILL');
+        if (process.platform === 'win32') child.kill('SIGTERM');
+        else process.kill(-child.pid, 'SIGTERM');
       } catch (error) {
         if (error?.code !== 'ESRCH') throw error;
       }
-      await exited;
-    }
-  }));
+      const stopped = await Promise.race([
+        exited.then(() => true),
+        new Promise((resolve) => setTimeout(() => resolve(false), 5_000)),
+      ]);
+      if (!stopped) {
+        try {
+          if (process.platform === 'win32') child.kill('SIGKILL');
+          else process.kill(-child.pid, 'SIGKILL');
+        } catch (error) {
+          if (error?.code !== 'ESRCH') throw error;
+        }
+        await exited;
+      }
+    }),
+  );
   return stopping;
 }

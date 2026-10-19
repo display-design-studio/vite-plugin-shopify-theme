@@ -1,0 +1,2 @@
+# Keep line endings as LF on every platform so Oxfmt (which has no "auto" mode) agrees with the checkout.
+* text=auto eol=lf

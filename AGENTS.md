@@ -12,7 +12,7 @@ This package is a focused Vite 8 plugin for explicit Shopify theme entries. Trea
 
 Never delete unrecorded theme assets. Ownership state may name only flat generated asset files. A live or uncertain lock must fail safely; stale development recovery may restore a snippet only when its recorded generated hash still matches. Preserve existing manual snippets and assets on failures.
 
-Unit coverage belongs in `test/unit.test.ts`; filesystem and Vite lifecycle coverage belongs in `test/integration.test.ts`. Run `npm run check` for canonical verification, or the documented individual scripts while iterating. Always run `git diff --check` before committing.
+Unit coverage belongs in `test/unit.test.ts`; filesystem and Vite lifecycle coverage belongs in `test/integration.test.ts`. Run `npm run check` for canonical verification, or the documented individual scripts while iterating. Formatting uses Oxfmt (`npm run format`) and linting uses Oxlint (`npm run lint`); both run inside `npm run check`. Always run `git diff --check` before committing.
 
 The compatibility matrix is a separate, network-dependent verification because it installs the packed package with selected Vite and Shopify CLI versions. Run `npm run compat:vite`, `npm run compat:shopify`, or `npm run compat`; do not add these commands to `npm run check` or assume they work offline.
 

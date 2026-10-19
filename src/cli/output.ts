@@ -19,12 +19,37 @@ const row = (style: OutputStyle, label: string, value: string) => `  ${paint(sty
 /** Facts the command already knows before anything starts: no probing, no waiting. */
 export function formatHeader(input: HeaderInput, style: OutputStyle): string {
   const dot = ` ${paint(style, 'dim', '·')} `;
-  const mode = input.mode === 'editor' ? paint(style, 'magenta', paint(style, 'bold', 'editor')) : paint(style, 'cyan', paint(style, 'bold', 'HMR'));
-  const versions = [`Vite ${input.vite}`, ...(input.shopify ? [paint(style, 'blue', paint(style, 'bold', `Shopify CLI ${input.shopify}`))] : []), `Node ${input.node.replace(/^v/, '')}`].join(dot);
-  const lines = [`${paint(style, 'bold', 'vite-shopify-theme')} ${paint(style, 'dim', input.version)}${dot}${mode}`, row(style, 'versions', versions)];
-  if (input.store) lines.push(row(style, 'store', `${input.store}${input.environment ? ` ${paint(style, 'dim', `(environment: ${input.environment})`)}` : ''}`));
-  else if (input.environment) lines.push(row(style, 'store', paint(style, 'dim', `(environment: ${input.environment})`)));
-  if (input.mode === 'editor') lines.push(row(style, 'assets', `built to assets/${dot}synced by Shopify CLI${dot}live reload: ${input.liveReload ?? 'full-page'}`));
+  const mode =
+    input.mode === 'editor'
+      ? paint(style, 'magenta', paint(style, 'bold', 'editor'))
+      : paint(style, 'cyan', paint(style, 'bold', 'HMR'));
+  const versions = [
+    `Vite ${input.vite}`,
+    ...(input.shopify ? [paint(style, 'blue', paint(style, 'bold', `Shopify CLI ${input.shopify}`))] : []),
+    `Node ${input.node.replace(/^v/, '')}`,
+  ].join(dot);
+  const lines = [
+    `${paint(style, 'bold', 'vite-shopify-theme')} ${paint(style, 'dim', input.version)}${dot}${mode}`,
+    row(style, 'versions', versions),
+  ];
+  if (input.store)
+    lines.push(
+      row(
+        style,
+        'store',
+        `${input.store}${input.environment ? ` ${paint(style, 'dim', `(environment: ${input.environment})`)}` : ''}`,
+      ),
+    );
+  else if (input.environment)
+    lines.push(row(style, 'store', paint(style, 'dim', `(environment: ${input.environment})`)));
+  if (input.mode === 'editor')
+    lines.push(
+      row(
+        style,
+        'assets',
+        `built to assets/${dot}synced by Shopify CLI${dot}live reload: ${input.liveReload ?? 'full-page'}`,
+      ),
+    );
   return `${lines.join('\n')}\n\n`;
 }
 
@@ -45,17 +70,26 @@ export function formatFooter(input: FooterInput, style: OutputStyle): string {
   return `\n${stopped} ${detail}\n`;
 }
 
-const generatedPatterns = ['.vite-shopify-theme.json', '.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js'];
+const generatedPatterns = [
+  '.vite-shopify-theme.json',
+  '.vite-shopify-theme.lock',
+  'assets/vite-manifest.json',
+  'assets/*-????????.css',
+  'assets/*-????????.js',
+];
 const wholeAssets = ['assets', 'assets/', '/assets', '/assets/', 'assets/*', '/assets/*'];
 
 /** Generated-file patterns that `init` writes and a watch session needs in `.gitignore`; Tailwind watches every unignored file. */
 export function missingGeneratedPatterns(gitignore: string | undefined): string[] {
   const lines = new Set((gitignore ?? '').split(/\r?\n/).map((line) => line.trim()));
   const ignoresAssets = wholeAssets.some((line) => lines.has(line));
-  return generatedPatterns.filter((pattern) => !lines.has(pattern) && !(ignoresAssets && pattern.startsWith('assets/')));
+  return generatedPatterns.filter(
+    (pattern) => !lines.has(pattern) && !(ignoresAssets && pattern.startsWith('assets/')),
+  );
 }
 
-export const troubleshootingUrl = 'https://display-design-studio.github.io/vite-plugin-shopify-theme/troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again';
+export const troubleshootingUrl =
+  'https://display-design-studio.github.io/vite-plugin-shopify-theme/troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again';
 
 export function formatGitignoreHint(missing: string[], style: OutputStyle): string {
   if (!missing.length) return '';
