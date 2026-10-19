@@ -216,6 +216,8 @@ function normalizeAttributes(name: string, attributes: unknown): Record<string, 
         'CONFIG_ENTRIES',
         `Entry "${name}" attribute "${attribute}" must be a string or true, received ${displayValue(value)}.`,
       );
+    // Control characters in attribute values are rejected on purpose, so the regex has to match them.
+    // oxlint-disable-next-line no-control-regex
     if (typeof value === 'string' && (/\{\{|\{%|\}\}|%\}/.test(value) || /[\u0000-\u001f\u007f]/.test(value))) {
       throw diagnostic(
         'CONFIG_ENTRIES',

@@ -1291,6 +1291,8 @@ describe('entry options rendering', () => {
 describe('terminal output', () => {
   const plain = { color: false };
   const colored = { color: true };
+  // Strips ANSI color escapes, which start with a control character.
+  // oxlint-disable-next-line no-control-regex
   const strip = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, '');
   const header = {
     version: '0.7.0',

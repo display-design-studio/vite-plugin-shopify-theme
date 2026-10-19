@@ -19,6 +19,8 @@ npm ci --prefix playground/skeleton-theme
 npm run check
 ```
 
+`npm run check` includes `npm run format:check` (Oxfmt) and `npm run lint` (Oxlint). Run `npm run format` to fix formatting. The formatting commit is listed in `.git-blame-ignore-revs`; run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so `git blame` skips it.
+
 The compatibility matrices install packed copies and require network access:
 
 ```sh
