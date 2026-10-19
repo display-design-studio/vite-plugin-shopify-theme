@@ -8,6 +8,10 @@ All notable changes to this package are documented here.
 
 - `dev` and `dev --editor` now start Shopify CLI with npm's `INIT_CWD` set to the directory they run in. Shopify CLI reads `INIT_CWD` before the real working directory, so a script started from a workspace root or with `npm --prefix` made it look for the theme and `shopify.theme.toml` in the wrong place (`Environment file not found`, `doesn't seem like you're running this command in a theme directory`). An explicit `--path` or `SHOPIFY_FLAG_PATH` still wins.
 
+### Changed
+
+- `vite-shopify-theme dev` and `dev --editor` run Vite at the warn level, so Vite's banner, URLs, and per-build tables (and the plugin's `Development assets ready` line) no longer repeat what the header and build lines say; warnings and errors still print. The plugin's build lines and `diagnostics: true` output go straight to stdout under the command. A `--logLevel` of your own or `--raw` keeps the previous output.
+
 ### Added
 
 - `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).

@@ -237,7 +237,7 @@ describe('development CLI', () => {
     release(true);
     await result.started;
     expect(spawned[0].command).toBe(process.execPath);
-    expect(spawned[0].args).toEqual([expect.stringMatching(/vite[\\/]bin[\\/]vite\.js$/), '--host', '0.0.0.0']);
+    expect(spawned[0].args).toEqual([expect.stringMatching(/vite[\\/]bin[\\/]vite\.js$/), '--host', '0.0.0.0', '--logLevel', 'warn']);
     expect(spawned[1]).toMatchObject({ command: 'shopify', args: ['theme', 'dev'], options: { cwd: root } });
     // npm sets INIT_CWD to where the script was started; Shopify CLI must look in the directory `dev` runs in.
     expect(spawned[1].options.env.INIT_CWD).toBe(root);
@@ -250,7 +250,7 @@ describe('development CLI', () => {
     const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
     const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
     await runDevelopment(['--host', '--', '--theme', '123', '--store', 'x.myshopify.com'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
-    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), '--host']);
+    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), '--host', '--logLevel', 'warn']);
     expect(calls[1][1]).toEqual(['theme', 'dev', '--theme', '123', '--store', 'x.myshopify.com']);
   });
 
@@ -259,7 +259,7 @@ describe('development CLI', () => {
     const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
     const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
     await runDevelopment(['--editor', '--mode', 'staging', '--', '--store', 'x.myshopify.com'], { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn() }).started;
-    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), 'build', '--watch', '--mode', 'staging']);
+    expect(calls[0][1]).toEqual([expect.stringMatching(/vite\.js$/), 'build', '--watch', '--mode', 'staging', '--logLevel', 'warn']);
     expect(calls[1][1]).toEqual(['theme', 'dev', '--live-reload', 'full-page', '--store', 'x.myshopify.com']);
   });
 
@@ -295,6 +295,27 @@ describe('development CLI', () => {
       expect(options.env.INIT_CWD, platform).toBe(root);
       expect(options.env.SHOPIFY_FLAG_PATH, platform).toBe('/explicit/theme');
     }
+  });
+
+  it('runs Vite at the warn level under the command, unless --raw or the caller chose a level', async () => {
+    const start = async (argumentsList: string[]) => {
+      const calls: any[] = [];
+      const spawn = ((...args: any[]) => { calls.push(args); return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() }); }) as never;
+      const root = mkdtempSync(join(tmpdir(), 'shopify-theme-dev-'));
+      await runDevelopment(argumentsList, { cwd: root, platform: 'linux', spawn, ready: async () => true, onSignal: vi.fn(), env: {} }).started;
+      return calls[0];
+    };
+    const quiet = await start([]);
+    expect(quiet[1].slice(-2)).toEqual(['--logLevel', 'warn']);
+    expect(quiet[2].env.VITE_SHOPIFY_THEME_CLI).toBe('1');
+    for (const choice of [['--logLevel', 'info'], ['-l', 'error'], ['--logLevel=silent']]) {
+      const chosen = await start(choice);
+      expect(chosen[1].filter((argument: string) => argument === 'warn')).toEqual([]);
+      expect(chosen[2].env).toBeUndefined();
+    }
+    const raw = await start(['--raw']);
+    expect(raw[1].includes('--logLevel')).toBe(false);
+    expect(raw[2].env).toBeUndefined();
   });
 
   it('quotes Shopify arguments for the Windows shell', async () => {

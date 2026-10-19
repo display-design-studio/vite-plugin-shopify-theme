@@ -671,6 +671,27 @@ describe('watch builds', () => {
     await watcher.close();
   }, 30_000);
 
+  it('writes build lines straight to stdout when the CLI runs Vite at the warn level', async () => {
+    const root = fixture();
+    const written: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => { written.push(String(line)); });
+    process.env.VITE_SHOPIFY_THEME_CLI = '1';
+    try {
+      const logger = createLogger('warn');
+      const info = vi.fn();
+      logger.info = info;
+      const watcher: any = await build({ configFile: false, root, logLevel: 'warn', customLogger: logger, build: { watch: {} }, plugins: [shopifyTheme({ entries, themeRoot: root, diagnostics: true })] });
+      expect(await nextBuild(watcher)).toBe('END');
+      await watcher.close();
+      expect(written.some((line) => /^\[shopify-theme\] build ok · 2 entries · \d+ ms · snippet written$/.test(line))).toBe(true);
+      expect(written.some((line) => line.includes('[shopify-theme:diagnostic:BUILD_OUTPUT_WRITTEN]'))).toBe(true);
+      expect(info.mock.calls.some(([message]) => String(message).includes('[shopify-theme'))).toBe(false);
+    } finally {
+      delete process.env.VITE_SHOPIFY_THEME_CLI;
+      log.mockRestore();
+    }
+  }, 30_000);
+
   it('keeps the lock and the last working output after a failed build, then recovers', async () => {
     const root = fixture();
     const watcher = await startWatch(root);
