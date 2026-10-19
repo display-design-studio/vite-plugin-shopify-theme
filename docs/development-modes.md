@@ -37,7 +37,6 @@ vite-shopify-theme 0.6.2 · HMR
 - `versions` names Vite, Shopify CLI (when the project depends on it), and Node, which helps when you report a problem.
 - `store` comes from `--store`, `SHOPIFY_FLAG_STORE`, or the selected environment in `shopify.theme.toml`.
 - In editor mode an `assets` row shows that assets are built to `assets/` and synced by Shopify CLI, with the live-reload mode.
-- A rule, `━━ Shopify CLI ━━━━`, marks where Shopify CLI's own output begins. Everything after it is Shopify's, with its colors, prompts, and keyboard shortcuts.
 - In editor mode, every build prints one line, `[shopify-theme] build ok · 2 entries · 312 ms · snippet written`, with `snippet unchanged` when the generated snippet did not change. A failed build prints `build failed · keeping the last good output`, followed by Vite's own error. These lines also appear under a plain `vite build --watch`.
 - In editor mode the header is followed by a hint when `.gitignore` lacks the generated-file patterns that `init` writes, because Tailwind CSS then rebuilds in a loop (see [Troubleshooting](./troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again)).
 - When both processes have stopped, `Stopped.` says what was left behind: the restored development snippet, the generated snippet of editor mode, or a remaining lock to clean up.

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { formatFooter, formatGitignoreHint, formatHeader, formatShopifyRule, missingGeneratedPatterns, outputStyle } from './output.js';
+import { formatFooter, formatGitignoreHint, formatHeader, missingGeneratedPatterns, outputStyle } from './output.js';
 
 export interface DevRuntime {
   cwd?: string;
@@ -157,7 +157,6 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     const ready = await (runtime.ready ?? (editor ? buildReady : snippetReady))(vite, cwd, () => closing);
     if (closing) return;
     if (!ready) console.warn(`vite-shopify-theme: Vite did not write the ${editor ? 'first build' : 'development snippet'} within ${(editor ? editorReadyTimeout : readyTimeout) / 1000}s; starting Shopify CLI anyway.`);
-    if (decorate) write(formatShopifyRule(shopifyVersion, style));
     // Shopify CLI resolves its working directory from npm's INIT_CWD before the real one, so a script started
     // from another directory (a workspace root, `npm --prefix`) would make it look for the theme and
     // shopify.theme.toml there. An explicit --path or SHOPIFY_FLAG_PATH still wins inside Shopify CLI.

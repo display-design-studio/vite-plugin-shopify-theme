@@ -52,10 +52,6 @@ In editor mode an `assets` row reads `built to assets/ · synced by Shopify CLI 
 
 Printed after both processes exit, naming what was left behind: `Stopped. Development snippet restored.` in HMR mode, `Stopped. Generated snippet kept; run vite build before deploying.` in editor mode, or a pointer to the troubleshooting guide when the ownership lock remains. An exit code appears only when a process failed by itself, not after a stop the user requested.
 
-### Shopify CLI rule
-
-The command prints one rule, `━━ Shopify CLI ━━━━`, right before it starts Shopify CLI, so its output is easy to find. Everything after it, including its `info` panels, preview and Theme Editor URLs, keyboard shortcuts, warnings, and errors, is Shopify's own. There is no closing rule, because placing one would require reading the output.
-
 ### Shopify CLI keyboard shortcuts
 
 Shopify CLI reads the keyboard itself (`t` local preview, `p` shareable preview, `e` Theme Editor, `g` gift cards, Ctrl+C to quit). The command never reads, buffers, or intercepts stdin, so these keep working.
@@ -86,7 +82,7 @@ Before starting Shopify CLI in editor mode, the command checks one thing: whethe
 ### Control
 
 - Plain output when stdout is not a TTY, `CI` is set, `NO_COLOR` is set, or `TERM` is `dumb`; ANSI colors otherwise, with no color library.
-- `vite-shopify-theme dev --raw` prints only Vite and Shopify CLI output, as before: no header, rule, footer, or hint.
+- `vite-shopify-theme dev --raw` prints only Vite and Shopify CLI output, as before: no header, footer, or hint.
 
 ## Performance
 
@@ -133,10 +129,11 @@ Revisit only with a concrete user report.
 - **An `assets` row in HMR mode.** The origin is only known once Vite has started, and it is not information a Shopify developer acts on.
 - **Expanding `[environments.development]` into flags to avoid Shopify's second `info` panel.** It duplicates Shopify CLI's environment handling, can drift between versions, and needs its own compatibility tests, only to remove one panel.
 - **A header preview URL.** Shopify CLI prints it in its own panel.
+- **A rule before Shopify CLI's output.** Its version is already in the header, and Shopify's panels are easy to tell apart.
 - **Preflight hints for `.shopifyignore` patterns and the old render syntax.** Shopify CLI already warns about the first, and the second is covered by the setup documentation.
 
 ## Implementation order
 
 1. Header, footer, formatter, and `--raw` (part 1, [#59](https://github.com/display-design-studio/vite-plugin-shopify-theme/pull/59)).
-2. The Shopify CLI rule, rebuild lines in editor mode, and the setup hint, with tests and documentation.
+2. Rebuild lines in editor mode, quieter Vite output, and the setup hint, with tests and documentation.
 3. Manual verification on a real store in both modes before release.

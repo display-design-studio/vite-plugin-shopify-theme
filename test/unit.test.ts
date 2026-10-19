@@ -7,7 +7,7 @@ import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from 
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { describeTarget, runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
-import { formatFooter, formatGitignoreHint, formatHeader, formatShopifyRule, missingGeneratedPatterns, outputStyle } from '../src/cli/output.js';
+import { formatFooter, formatGitignoreHint, formatHeader, missingGeneratedPatterns, outputStyle } from '../src/cli/output.js';
 import { formatBuildLine } from '../src/terminal.js';
 import { EventEmitter } from 'node:events';
 import type { Manifest } from 'vite';
@@ -872,13 +872,6 @@ describe('terminal output', () => {
     expect(formatBuildLine({ ok: false }, colored)).toContain('\x1b[31m');
   });
 
-  it('formats the rule that opens Shopify CLI output with or without a version', () => {
-    expect(formatShopifyRule('4.9.3', plain)).toMatch(/^━━ Shopify CLI 4\.9\.3 ━+\n$/);
-    expect(formatShopifyRule(undefined, plain)).toMatch(/^━━ Shopify CLI ━+\n$/);
-    expect(formatShopifyRule('4.9.3', plain).length).toBe(73);
-    expect(strip(formatShopifyRule('4.9.3', colored))).toBe(formatShopifyRule('4.9.3', plain));
-  });
-
   it('finds the generated-file patterns missing from .gitignore', () => {
     expect(missingGeneratedPatterns(undefined)).toHaveLength(5);
     expect(missingGeneratedPatterns('node_modules/\n.vite-shopify-theme.json\n')).toEqual(['.vite-shopify-theme.lock', 'assets/vite-manifest.json', 'assets/*-????????.css', 'assets/*-????????.js']);
@@ -924,15 +917,12 @@ describe('terminal output', () => {
     process.exitCode = undefined;
   });
 
-  it('opens Shopify CLI output with a rule written before Shopify starts', async () => {
+  it('writes the header before Shopify starts and nothing between the header and Shopify CLI output', async () => {
     const { events, result } = session([]);
     await result.started;
-    const rule = events.findIndex((event) => event.startsWith('write:━━ Shopify CLI'));
-    expect(rule).toBeGreaterThan(0);
-    expect(events[rule + 1]).toBe('spawn:shopify');
-    const raw = session(['--raw']);
-    await raw.result.started;
-    expect(raw.events.some((event) => event.includes('Shopify CLI ━'))).toBe(false);
+    const shopify = events.indexOf('spawn:shopify');
+    expect(shopify).toBeGreaterThan(0);
+    expect(events.slice(0, shopify).filter((event) => event.startsWith('write:'))).toHaveLength(1);
   });
 
   it('hints about missing .gitignore patterns in editor mode only', async () => {
