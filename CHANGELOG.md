@@ -6,7 +6,12 @@ All notable changes to this package are documented here.
 
 ### Deprecated
 
+- The root exports `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, `productionSnippet`, and the types `NormalizedOptions` and `ManifestTags` are marked `@deprecated` in the types. They are internal and are removed in 1.0.0 ([RFC 0004](docs/rfcs/0004-public-api.md)). `productionSnippet` is also out of date: it cannot render `attributes`, `inline`, or the CSS bundle. Nothing changes at runtime.
 - `devOrigin` and the HTTPS tunnel recipe. The plugin prints a `DEV_ORIGIN_DEPRECATED` warning when `devOrigin` is set under `vite`, the option is marked `@deprecated` in its types, and the docs point to `dev --editor`, which gives a live Theme Editor without a tunnel. `devOrigin` is removed in 1.0.0.
+
+### Documentation
+
+- [Public API](docs/public-api.md) now lists what is public, the deprecated exports, and every diagnostic code with its meaning. A test keeps the code table and the export list in sync with the source.
 
 ### Fixed
 
