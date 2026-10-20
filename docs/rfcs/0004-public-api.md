@@ -77,7 +77,7 @@ Remove the deprecated exports from `src/index.ts`. The functions stay in their i
 
 ## Tests
 
-- `scripts/check-pack.mjs` pins the runtime export list and the declaration text (`expectedRuntimeExports` and the `index.d.ts` expectation); both change in the same commits as the exports, as `AGENTS.md` requires. In 0.7.0 the list is unchanged and the declaration expectation gains the `@deprecated` tags.
+- `scripts/check-pack.mjs` pins the runtime export list and the declaration text (`expectedRuntimeExports` and the `index.d.ts` expectation); both change in the same commits as the exports, as `AGENTS.md` requires. In 0.7.0 the runtime list is unchanged. The deprecated names are re-declared in `src/index.ts` as `@deprecated` aliases (so the plugin's own use of the internals is not flagged), so the `index.d.ts` text changes: it now has the aliased imports and the tagged declarations. The unit tests also keep `docs/public-api.md` in step: its code table must equal the `DiagnosticCode` type, and every root export must be documented as public or deprecated.
 - Unit: every `DiagnosticCode` appears in the documentation table and every table row is a real code.
 - The 1.0.0 change fails `pack:check` until the contract is updated, which is the intended guard.
 
