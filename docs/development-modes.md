@@ -29,7 +29,7 @@ How it behaves:
 `dev` and `dev --editor` print a short header before anything starts and a line when the session ends. Shopify CLI's own output is not parsed or changed.
 
 ```text
-vite-shopify-theme 0.6.2 · HMR
+vite-shopify-theme 0.7.0 · HMR
   versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0
   store     your-store.myshopify.com (environment: development)
 ```

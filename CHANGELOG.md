@@ -2,29 +2,29 @@
 
 All notable changes to this package are documented here.
 
-## Unreleased
+## 0.7.0
+
+### Added
+
+- `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).
+- Watch builds (`dev --editor` or `vite build --watch`) print one line each: `[shopify-theme] build ok · 2 entries · 312 ms · snippet written` or `snippet unchanged`, and `build failed · keeping the last good output` after a failed build. In editor mode, a hint appears when `.gitignore` lacks the generated-file patterns that make Tailwind CSS rebuild in a loop (RFC 0003, part 2).
+
+### Changed
+
+- `vite-shopify-theme dev` and `dev --editor` run Vite at the warn level, so Vite's banner, URLs, and per-build tables (and the plugin's `Development assets ready` line) no longer repeat what the header and build lines say; warnings and errors still print. The plugin's build lines and `diagnostics: true` output go straight to stdout under the command. A `--logLevel` of your own or `--raw` keeps the previous output.
 
 ### Deprecated
 
 - The root exports `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, `productionSnippet`, and the types `NormalizedOptions` and `ManifestTags` are marked `@deprecated` in the types. They are internal and are removed in 1.0.0 ([RFC 0004](docs/rfcs/0004-public-api.md)). `productionSnippet` is also out of date: it cannot render `attributes`, `inline`, or the CSS bundle. Nothing changes at runtime.
 - `devOrigin` and the HTTPS tunnel recipe. The plugin prints a `DEV_ORIGIN_DEPRECATED` warning when `devOrigin` is set under `vite`, the option is marked `@deprecated` in its types, and the docs point to `dev --editor`, which gives a live Theme Editor without a tunnel. `devOrigin` is removed in 1.0.0.
 
-### Documentation
-
-- [Public API](docs/public-api.md) now lists what is public, the deprecated exports, and every diagnostic code with its meaning. A test keeps the code table and the export list in sync with the source.
-
 ### Fixed
 
 - `dev` and `dev --editor` now start Shopify CLI with npm's `INIT_CWD` set to the directory they run in. Shopify CLI reads `INIT_CWD` before the real working directory, so a script started from a workspace root or with `npm --prefix` made it look for the theme and `shopify.theme.toml` in the wrong place (`Environment file not found`, `doesn't seem like you're running this command in a theme directory`). An explicit `--path` or `SHOPIFY_FLAG_PATH` still wins.
 
-### Changed
+### Documentation
 
-- `vite-shopify-theme dev` and `dev --editor` run Vite at the warn level, so Vite's banner, URLs, and per-build tables (and the plugin's `Development assets ready` line) no longer repeat what the header and build lines say; warnings and errors still print. The plugin's build lines and `diagnostics: true` output go straight to stdout under the command. A `--logLevel` of your own or `--raw` keeps the previous output.
-
-### Added
-
-- `vite-shopify-theme dev` and `dev --editor` print a short header (mode, Vite, Shopify CLI, and Node versions, store and environment) before starting and a `Stopped.` line after both processes exit, naming what was left behind. Colors only on an interactive terminal; plain text under `CI`, `NO_COLOR`, or a pipe. `--raw` prints only Vite and Shopify CLI output as before. Shopify CLI output, prompts, and keyboard shortcuts are untouched ([RFC 0003](docs/rfcs/0003-terminal-output.md), part 1).
-- Watch builds (`dev --editor` or `vite build --watch`) print one line each: `[shopify-theme] build ok · 2 entries · 312 ms · snippet written` or `snippet unchanged`, and `build failed · keeping the last good output` after a failed build. In editor mode, a hint appears when `.gitignore` lacks the generated-file patterns that make Tailwind CSS rebuild in a loop (RFC 0003, part 2).
+- [Public API](docs/public-api.md) now lists what is public, the deprecated exports, and every diagnostic code with its meaning. A test keeps the code table and the export list in sync with the source.
 
 ## 0.6.1
 
