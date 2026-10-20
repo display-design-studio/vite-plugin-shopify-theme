@@ -98,3 +98,23 @@ export function formatGitignoreHint(missing: string[], style: OutputStyle): stri
   if (!missing.length) return '';
   return `  ${paint(style, 'yellow', 'hint')}  .gitignore lacks ${missing.length === 1 ? 'a generated-file pattern' : `${missing.length} generated-file patterns`}; Tailwind CSS then rebuilds in a loop. The patterns are listed here:\n        ${paint(style, 'dim', troubleshootingUrl)}\n\n`;
 }
+
+export interface MissingThemePathInput {
+  path: string;
+  /** Installed version of the devtools plugin that generates a theme mirror, when it is present. */
+  devtools?: string;
+}
+
+/** The mirror fix shipped in @display-studio/vite-plugin-shopify-devtools 0.5.0; older 0.x versions removed it at startup. */
+export function mirrorFixMissing(version: string | undefined): boolean {
+  const match = /^(\d+)\.(\d+)\./.exec(version ?? '');
+  return match !== null && Number(match[1]) === 0 && Number(match[2]) < 5;
+}
+
+/** Explains the Shopify CLI error that follows when an explicit theme folder does not exist when it starts. */
+export function formatMissingThemePathHint(input: MissingThemePathInput, style: OutputStyle): string {
+  const cause = mirrorFixMissing(input.devtools)
+    ? `@display-studio/vite-plugin-shopify-devtools ${input.devtools} removes its mirror at startup; install 0.5.0 or later (a ^0.4.0 range does not reach 0.5.0, so a plain update keeps the old version).`
+    : 'Check that whatever generates it, such as the devtools mirror, has finished before Shopify CLI starts.';
+  return `  ${paint(style, 'yellow', 'warn')}  The theme folder "${input.path}" does not exist, so Shopify CLI will stop.\n        ${paint(style, 'dim', cause)}\n\n`;
+}

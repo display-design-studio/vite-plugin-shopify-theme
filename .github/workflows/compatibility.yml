@@ -132,3 +132,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run compat:editor -- ${{ matrix.manager }}
+
+  devtools:
+    name: ${{ matrix.os }} / dev with the devtools plugin
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run compat:devtools -- npm

@@ -4,6 +4,12 @@
 
 This is a bug in npm 10.8.2, the npm bundled with Node.js 20.19.0, and it happens with Vite 8.2 or newer even without this plugin ([npm/cli#9787](https://github.com/npm/cli/issues/9787)). Run `npm install --global npm@11` and retry, or use pnpm, Yarn, or Bun. See [Support and Compatibility](./support-compatibility#node-js-20-19-0-and-npm).
 
+## Shopify CLI says "A path was explicitly provided but doesn't exist"
+
+`dev` printed `The theme folder "…" does not exist, so Shopify CLI will stop` before Shopify CLI failed. The folder in `SHOPIFY_FLAG_PATH` (or `--path` after `--`) was not there when Shopify CLI started, which usually means whatever generates it is not running or is too old.
+
+With `@display-studio/vite-plugin-shopify-devtools` and `instrument: 'copy'`, the folder is `.shopify-devtools/theme`. Versions before 0.5.0 removed that mirror as soon as the dev server started, so use 0.5.0 or later. For a 0.x version, a range such as `^0.4.0` never reaches 0.5.0 and a plain `bun update` or `npm update` keeps the old version; install the new one explicitly, for example `bun add -d @display-studio/vite-plugin-shopify-devtools@latest`.
+
 ## `shopify` was not found
 
 Install Shopify CLI globally and confirm `shopify version` works.

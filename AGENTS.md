@@ -14,7 +14,7 @@ Never delete unrecorded theme assets. Ownership state may name only flat generat
 
 Unit coverage belongs in `test/unit.test.ts`; filesystem and Vite lifecycle coverage belongs in `test/integration.test.ts`. Run `npm run check` for canonical verification, or the documented individual scripts while iterating. Formatting uses Oxfmt (`npm run format`) and linting uses Oxlint (`npm run lint`); both run inside `npm run check`. Always run `git diff --check` before committing.
 
-The compatibility matrix is a separate, network-dependent verification because it installs the packed package with selected Vite and Shopify CLI versions. Run `npm run compat:vite`, `npm run compat:shopify`, or `npm run compat` (`npm run compat:editor` smoke-tests `dev --editor` from the packed package with a stand-in `shopify` command); do not add these commands to `npm run check` or assume they work offline.
+The compatibility matrix is a separate, network-dependent verification because it installs the packed package with selected Vite and Shopify CLI versions. Run `npm run compat:vite`, `npm run compat:shopify`, or `npm run compat` (`npm run compat:editor` smoke-tests `dev --editor` from the packed package with a stand-in `shopify` command, and `npm run compat:devtools` runs `dev` with `@display-studio/vite-plugin-shopify-devtools` installed from the registry); do not add these commands to `npm run check` or assume they work offline.
 
 When changing the Node engine, Vite peer range, package exports, or published files, keep `package.json`, `scripts/check-pack.mjs`, the compatibility CI matrix, and the README support/API tables synchronized in the same change.
 

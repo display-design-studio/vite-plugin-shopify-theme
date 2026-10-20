@@ -2,56 +2,18 @@
 // It checks that the command starts, prints its header, builds, starts Shopify CLI with the right arguments and
 // directory, rebuilds after an edit, and (where signals work) stops cleanly. No store or credentials are involved.
 import { spawn, spawnSync } from 'node:child_process';
-import {
-  appendFileSync,
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { installConsumer, selectManager } from './consumer-support.mjs';
+import { fail, until, writeStandInShopify } from './smoke-support.mjs';
 
 const manager = selectManager(process.argv[2]);
 const windows = process.platform === 'win32';
 const { temporary, consumer } = installConsumer(manager, 'editor');
 
-function fail(message, output) {
-  throw new Error(`${message}\n--- command output ---\n${output.join('')}`);
-}
-
-async function until(label, condition, output, timeout = 90_000) {
-  const started = Date.now();
-  while (Date.now() - started < timeout) {
-    if (condition()) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  fail(`Timed out waiting for ${label}.`, output);
-}
-
 try {
-  // A stand-in Shopify CLI that records how it was started and keeps running until it is stopped.
-  const bin = join(temporary, 'fake-bin');
-  mkdirSync(bin);
   const record = join(temporary, 'shopify-call.json');
-  writeFileSync(
-    join(bin, 'fake-shopify.mjs'),
-    [
-      "import { writeFileSync } from 'node:fs';",
-      `writeFileSync(${JSON.stringify(record)}, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd(), initCwd: process.env.INIT_CWD }));`,
-      "process.on('SIGINT', () => process.exit(0));",
-      "process.on('SIGTERM', () => process.exit(0));",
-      'setInterval(() => {}, 1000);',
-    ].join('\n'),
-  );
-  if (windows) writeFileSync(join(bin, 'shopify.cmd'), '@echo off\r\nnode "%~dp0fake-shopify.mjs" %*\r\n');
-  else {
-    writeFileSync(join(bin, 'shopify'), '#!/bin/sh\nexec node "$(dirname "$0")/fake-shopify.mjs" "$@"\n');
-    chmodSync(join(bin, 'shopify'), 0o755);
-  }
+  const bin = writeStandInShopify(temporary, record);
   writeFileSync(join(consumer, 'shopify.theme.toml'), '[environments.development]\nstore = "smoke.myshopify.com"\n');
 
   const cli = join(consumer, 'node_modules', '@display-studio', 'vite-plugin-shopify-theme', 'dist', 'cli.js');

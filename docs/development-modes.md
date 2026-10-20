@@ -36,6 +36,7 @@ vite-shopify-theme 0.7.0 · HMR
 
 - `versions` names Vite, Shopify CLI (when the project depends on it), and Node, which helps when you report a problem.
 - `store` comes from `--store`, `SHOPIFY_FLAG_STORE`, or the selected environment in `shopify.theme.toml`.
+- When that explicit folder does not exist yet at the moment Shopify CLI is about to start, a `warn` line says so and, if an older `@display-studio/vite-plugin-shopify-devtools` is installed, names the version to update to.
 - `theme` appears when Shopify CLI is given an explicit folder (`--path` after `--`, or `SHOPIFY_FLAG_PATH`), so a generated folder such as the theme mirror of `@display-studio/vite-plugin-shopify-devtools` is visible.
 - In editor mode an `assets` row shows that assets are built to `assets/` and synced by Shopify CLI, with the live-reload mode.
 - In editor mode, every build prints one line, `[shopify-theme] build ok · 2 entries · 312 ms · snippet written`, with `snippet unchanged` when the generated snippet did not change. A failed build prints `build failed · keeping the last good output`, followed by Vite's own error. These lines also appear under a plain `vite build --watch`.
