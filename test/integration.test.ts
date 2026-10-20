@@ -78,6 +78,7 @@ function devServer(
   devOrigin?: string,
   configuredEntries: Record<string, string> = entries,
   diagnostics = false,
+  extraServer: Record<string, unknown> = {},
 ) {
   const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, devOrigin, diagnostics }) as any;
   const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
@@ -89,7 +90,11 @@ function devServer(
     address(): { address: string; family: string; port: number };
   };
   httpServer.address = () => ({ address: '127.0.0.1', family: 'IPv4', port: 5173 });
-  const server = { config: { server: { host: '127.0.0.1', https: false, ...contribution.server } }, httpServer };
+  const server = {
+    config: { server: { host: '127.0.0.1', https: false, ...contribution.server } },
+    httpServer,
+    ...extraServer,
+  };
   plugin.configureServer(server);
   return { plugin, contribution, httpServer, info, warn, warnOnce };
 }
@@ -386,6 +391,94 @@ describe('isolated builds', () => {
     expect(statSync(join(root, 'assets/stale.js')).isDirectory()).toBe(true);
     expect(existsSync(lockPath(root))).toBe(false);
     expect(readdirSync(join(root, 'snippets')).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+});
+
+describe('signal shutdown', () => {
+  // Captures the handlers the plugin registers with process.once instead of signalling the test runner.
+  function captureSignals() {
+    const handlers = new Map<string, () => void>();
+    const once = vi.spyOn(process, 'once').mockImplementation(((event: string, handler: () => void) => {
+      handlers.set(event, handler);
+      return process;
+    }) as never);
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    return {
+      handlers,
+      kill,
+      restore: () => {
+        once.mockRestore();
+        kill.mockRestore();
+      },
+    };
+  }
+
+  it('releases the lock at once, then closes the dev server before re-raising the signal', async () => {
+    const root = fixture();
+    const signals = captureSignals();
+    try {
+      const events: string[] = [];
+      devServer(root, undefined, entries, false, {
+        close: async () => {
+          events.push('close started');
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          events.push('close finished');
+        },
+      });
+      expect(existsSync(lockPath(root))).toBe(true);
+      signals.kill.mockImplementation((() => {
+        events.push('re-raised');
+        return true;
+      }) as never);
+
+      signals.handlers.get('SIGTERM')?.();
+      expect(existsSync(lockPath(root))).toBe(false);
+      expect(events).toEqual(['close started']);
+      await vi.waitFor(() => expect(signals.kill).toHaveBeenCalledTimes(1));
+      expect(events).toEqual(['close started', 'close finished', 're-raised']);
+      expect(signals.kill).toHaveBeenCalledWith(process.pid, 'SIGTERM');
+    } finally {
+      signals.restore();
+    }
+  });
+
+  it('re-raises after a bounded wait when the dev server never finishes closing', async () => {
+    vi.useFakeTimers();
+    const root = fixture();
+    const signals = captureSignals();
+    try {
+      devServer(root, undefined, entries, false, { close: () => new Promise(() => undefined) });
+      signals.handlers.get('SIGINT')?.();
+      expect(signals.kill).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(signals.kill).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals.kill).toHaveBeenCalledExactlyOnceWith(process.pid, 'SIGINT');
+      expect(existsSync(lockPath(root))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      signals.restore();
+    }
+  });
+
+  it('re-raises immediately when there is no dev server, as in a build', () => {
+    const root = fixture();
+    const signals = captureSignals();
+    try {
+      const plugin = shopifyTheme({ entries, themeRoot: root }) as any;
+      plugin.config({ root }, { command: 'build', mode: 'production' });
+      plugin.configResolved({
+        command: 'build',
+        build: { modulePreload: true },
+        logger: { info: vi.fn(), warn: vi.fn() },
+      });
+      plugin.buildStart();
+      signals.handlers.get('SIGTERM')?.();
+      expect(signals.kill).toHaveBeenCalledExactlyOnceWith(process.pid, 'SIGTERM');
+      expect(existsSync(lockPath(root))).toBe(false);
+    } finally {
+      signals.restore();
+    }
   });
 });
 

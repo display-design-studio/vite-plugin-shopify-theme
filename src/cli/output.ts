@@ -10,6 +10,8 @@ export interface HeaderInput {
   shopify?: string;
   store?: string;
   environment?: string;
+  /** Theme folder Shopify CLI serves, when an explicit path was given (`--path` or `SHOPIFY_FLAG_PATH`). */
+  themePath?: string;
   /** Live-reload mode Shopify CLI runs with; shown in editor mode. */
   liveReload?: string;
 }
@@ -42,6 +44,7 @@ export function formatHeader(input: HeaderInput, style: OutputStyle): string {
     );
   else if (input.environment)
     lines.push(row(style, 'store', paint(style, 'dim', `(environment: ${input.environment})`)));
+  if (input.themePath) lines.push(row(style, 'theme', input.themePath));
   if (input.mode === 'editor')
     lines.push(
       row(

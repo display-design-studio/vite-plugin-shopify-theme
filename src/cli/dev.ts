@@ -183,6 +183,7 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
           shopify: shopifyVersion,
           ...describeTarget(cwd, themeArguments, env),
           liveReload: flagValue(themeArguments, ['--live-reload']),
+          themePath: flagValue(themeArguments, ['--path']) ?? env.SHOPIFY_FLAG_PATH,
         },
         style,
       ) + hint,

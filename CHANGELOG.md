@@ -2,6 +2,16 @@
 
 All notable changes to this package are documented here.
 
+## Unreleased
+
+### Changed
+
+- The `dev` header shows a `theme` row with the folder Shopify CLI serves when `--path` or `SHOPIFY_FLAG_PATH` is set, so a generated folder such as the devtools mirror is visible.
+
+### Fixed
+
+- On `SIGINT` and `SIGTERM` under `vite`, the plugin re-raised the signal right after releasing its lock, which ended the process before Vite's graceful `server.close()` and other plugins' shutdown work could finish (for example `@display-studio/vite-plugin-shopify-devtools` removing its `.shopify-devtools/theme` mirror). It now releases the lock and restores the snippet first, then closes the server for up to two seconds, then re-raises the signal. Builds and watch builds are unchanged ([#74](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/74)).
+
 ## 0.7.0
 
 ### Added
