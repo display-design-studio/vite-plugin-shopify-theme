@@ -1324,6 +1324,14 @@ describe('terminal output', () => {
     expect(text).not.toContain('\x1b[');
   });
 
+  it('shows the theme folder Shopify CLI serves only when an explicit path was given', () => {
+    const withPath = formatHeader({ ...header, themePath: '.shopify-devtools/theme' }, plain);
+    expect(withPath).toBe(
+      'vite-shopify-theme 0.7.0 · HMR\n  versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0\n  store     shop.myshopify.com (environment: development)\n  theme     .shopify-devtools/theme\n\n',
+    );
+    expect(formatHeader(header, plain)).not.toContain('theme     ');
+  });
+
   it('shows the editor asset row with the live-reload mode and omits unknown values', () => {
     const text = formatHeader(
       { version: '0.7.0', mode: 'editor', vite: '8.3.4', node: 'v26.12.0', liveReload: 'off' },
@@ -1405,7 +1413,10 @@ describe('terminal output', () => {
     );
   });
 
-  function session(argumentsList: string[], options: { lock?: boolean; version?: string | undefined } = {}) {
+  function session(
+    argumentsList: string[],
+    options: { lock?: boolean; version?: string | undefined; env?: NodeJS.ProcessEnv } = {},
+  ) {
     const events: string[] = [];
     const children: any[] = [];
     const spawn = ((command: string) => {
@@ -1430,12 +1441,20 @@ describe('terminal output', () => {
       ready: async () => true,
       onSignal: (signal, handler) => signals.set(signal, handler),
       write: (text) => events.push(`write:${text}`),
-      env: {},
+      env: options.env ?? {},
       isTTY: false,
       ...('version' in options ? { version: options.version } : { version: '0.7.0' }),
     });
     return { events, children, result, signals };
   }
+
+  it('names the theme folder from --path or SHOPIFY_FLAG_PATH in the header', () => {
+    const fromEnv = session([], { env: { SHOPIFY_FLAG_PATH: '.shopify-devtools/theme' } });
+    expect(fromEnv.events[0]).toContain('  theme     .shopify-devtools/theme\n');
+    const fromFlag = session(['--', '--path', 'generated/theme']);
+    expect(fromFlag.events[0]).toContain('  theme     generated/theme\n');
+    expect(session([]).events[0]).not.toContain('  theme     ');
+  });
 
   it('prints the header before anything starts and the footer after both processes exit', async () => {
     const { events, children, result, signals } = session([]);

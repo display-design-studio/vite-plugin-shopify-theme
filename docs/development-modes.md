@@ -36,6 +36,7 @@ vite-shopify-theme 0.7.0 · HMR
 
 - `versions` names Vite, Shopify CLI (when the project depends on it), and Node, which helps when you report a problem.
 - `store` comes from `--store`, `SHOPIFY_FLAG_STORE`, or the selected environment in `shopify.theme.toml`.
+- `theme` appears when Shopify CLI is given an explicit folder (`--path` after `--`, or `SHOPIFY_FLAG_PATH`), so a generated folder such as the theme mirror of `@display-studio/vite-plugin-shopify-devtools` is visible.
 - In editor mode an `assets` row shows that assets are built to `assets/` and synced by Shopify CLI, with the live-reload mode.
 - In editor mode, every build prints one line, `[shopify-theme] build ok · 2 entries · 312 ms · snippet written`, with `snippet unchanged` when the generated snippet did not change. A failed build prints `build failed · keeping the last good output`, followed by Vite's own error. These lines also appear under a plain `vite build --watch`.
 - In editor mode the header is followed by a hint when `.gitignore` lacks the generated-file patterns that `init` writes, because Tailwind CSS then rebuilds in a loop (see [Troubleshooting](./troubleshooting#dev-editor-or-vite-build-watch-rebuilds-again-and-again)).
@@ -56,7 +57,7 @@ store = "your-store.myshopify.com"
 
 When this file defines `[environments.development]`, `dev` runs `shopify theme dev --environment development`, so Shopify CLI does not ask for a store each time. `init` writes `example.shopify.theme.toml` as a template: copy it to `shopify.theme.toml` and set your store. Pass `-e <name>` or `--environment <name>` after `--`, or set `SHOPIFY_FLAG_ENVIRONMENT`, to choose another environment; `dev` then adds nothing.
 
-The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals, stops the sibling process when either exits, and propagates failures. On Windows, a shell is used only for the Shopify shim.
+The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals (on `SIGINT` and `SIGTERM` the plugin releases the lock, restores the snippet, and closes the Vite server for up to two seconds before it re-raises the signal, so other plugins can remove their temporary files), stops the sibling process when either exits, and propagates failures. On Windows, a shell is used only for the Shopify shim.
 
 `devOrigin` (an HTTPS origin for a tunnel managed elsewhere, giving HMR inside the Theme Editor) is deprecated and will be removed in 1.0.0; the plugin warns with `DEV_ORIGIN_DEPRECATED` when it is set. Use `dev --editor` for a live Theme Editor without a tunnel. During development the snippet contains HMR and reload clients; the previous snippet is restored at shutdown. A live or uncertain lock fails safely.
 
