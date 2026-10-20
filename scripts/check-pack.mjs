@@ -42,11 +42,22 @@ export const expectedRuntimeExports = [
 ];
 
 const expectedTypeEntrypoint = [
+  "import { normalizeOptions as normalize, NormalizedOptions as Normalized } from './config.js';",
+  "import { collectManifestTags as collect, developmentSnippet as development, productionSnippet as production, ManifestTags as Tags } from './snippets.js';",
   "export { default, shopifyTheme } from './plugin.js';",
-  "export { normalizeOptions } from './config.js';",
-  "export type { EntryOptions, NormalizedOptions, ShopifyThemeOptions } from './config.js';",
-  "export { collectManifestTags, developmentSnippet, productionSnippet } from './snippets.js';",
-  "export type { ManifestTags } from './snippets.js';",
+  "export type { EntryOptions, ShopifyThemeOptions } from './config.js';",
+  '/** @deprecated Internal; removed in 1.0.0. */',
+  'export declare const normalizeOptions: typeof normalize;',
+  '/** @deprecated Internal; removed in 1.0.0. */',
+  'export type NormalizedOptions = Normalized;',
+  '/** @deprecated Internal; removed in 1.0.0. */',
+  'export declare const collectManifestTags: typeof collect;',
+  '/** @deprecated Internal; removed in 1.0.0. */',
+  'export type ManifestTags = Tags;',
+  '/** @deprecated Internal; removed in 1.0.0. */',
+  'export declare const developmentSnippet: typeof development;',
+  '/** @deprecated Internal and out of date (it cannot render `attributes`, `inline`, or the CSS bundle); removed in 1.0.0. */',
+  'export declare const productionSnippet: typeof production;',
   '',
 ].join('\n');
 

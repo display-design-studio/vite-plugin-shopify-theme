@@ -11,14 +11,16 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { normalizeOptions } from '../src/config.js';
+import { shopifyTheme } from '../src/index.js';
 import {
   collectManifestTags,
   developmentSnippet,
-  normalizeOptions,
   productionSnippet,
-  shopifyTheme,
-} from '../src/index.js';
-import { renderProductionSnippet, SNIPPET_SIZE_LIMIT, snippetSizeWarning } from '../src/snippets.js';
+  renderProductionSnippet,
+  SNIPPET_SIZE_LIMIT,
+  snippetSizeWarning,
+} from '../src/snippets.js';
 import { initialize } from '../src/cli/init.js';
 import { parseInitArguments } from '../src/cli.js';
 import { describeTarget, runDevelopment, shopifyThemeArguments } from '../src/cli/dev.js';
@@ -1502,5 +1504,32 @@ describe('terminal output', () => {
     await quiet.result.started;
     expect(quiet.events.filter((event) => event.startsWith('write:'))).toEqual([]);
     process.exitCode = undefined;
+  });
+});
+
+describe('public API documentation', () => {
+  const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const documentation = read('../docs/public-api.md');
+  const rows = (section: string) => {
+    const start = documentation.indexOf(`## ${section}`);
+    const end = documentation.indexOf('\n## ', start + 1);
+    return documentation.slice(start, end === -1 ? undefined : end);
+  };
+
+  it('lists every diagnostic code, and only real ones', () => {
+    const declared = read('../src/config.ts').match(/export type DiagnosticCode =([^;]+);/)?.[1] ?? '';
+    const codes = [...declared.matchAll(/'([A-Z_]+)'/g)].map((match) => match[1]).sort();
+    const documented = [...rows('Diagnostic codes').matchAll(/^\| `([A-Z_]+)` \|/gm)].map((match) => match[1]).sort();
+    expect(codes.length).toBeGreaterThan(30);
+    expect(documented).toEqual(codes);
+  });
+
+  it('documents every root export as public or deprecated', async () => {
+    const exported = Object.keys(await import('../src/index.js')).sort();
+    const deprecated = [...rows('Deprecated exports').matchAll(/^\| `(\w+)` \|/gm)].map((match) => match[1]);
+    const runtimeDeprecated = ['collectManifestTags', 'developmentSnippet', 'normalizeOptions', 'productionSnippet'];
+    expect(exported).toEqual(['default', 'shopifyTheme', ...runtimeDeprecated].sort());
+    for (const name of runtimeDeprecated) expect(deprecated, name).toContain(name);
+    for (const name of ['NormalizedOptions', 'ManifestTags']) expect(deprecated, name).toContain(name);
   });
 });
