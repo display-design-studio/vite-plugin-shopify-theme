@@ -56,6 +56,8 @@ type DiagnosticEvent =
 // Shopify CLI uploads changed files concurrently and in no fixed order, so in watch mode the snippet
 // is written shortly after the assets it references to give those uploads a head start.
 const WATCH_SNIPPET_DELAY = 1000;
+// Upper bound for closing the dev server after SIGINT or SIGTERM, so a stuck plugin cannot keep the process alive.
+const SIGNAL_CLOSE_TIMEOUT = 2000;
 
 export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let options: NormalizedOptions;
@@ -65,6 +67,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
   let exitHandler: (() => void) | undefined;
   let signalHandlers: Partial<Record<NodeJS.Signals, () => void>> = {};
   let owner: LockOwner | undefined;
+  let devServer: ViteDevServer | undefined;
   let cssCodeSplit = true;
   // Asset names of the last two distinct outputs of a watch session. A rebuild that produces the same files
   // (for example one triggered by the snippet write) does not advance them, so the older output stays retained.
@@ -127,8 +130,21 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     process.once('exit', exitHandler);
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       const handler = () => {
+        const server = devServer;
+        // Free the lock and restore the snippet first, so they are safe even if the close below hangs.
         cleanup();
-        process.kill(process.pid, signal);
+        const finish = () => process.kill(process.pid, signal);
+        if (!server) return finish();
+        // Re-raising right away would end the process before Vite and the other plugins finish their own
+        // shutdown (Vite's graceful close, another plugin's temporary files). Close the server first, bounded.
+        const timer = setTimeout(finish, SIGNAL_CLOSE_TIMEOUT);
+        server
+          .close()
+          .catch(() => undefined)
+          .finally(() => {
+            clearTimeout(timer);
+            finish();
+          });
       };
       signalHandlers[signal] = handler;
       process.once(signal, handler);
@@ -352,6 +368,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
         );
       }
       owner = acquireLock(options.themeRoot, 'development');
+      devServer = server;
       logDiagnostic('OWNERSHIP_ACQUIRED', `mode=development root=${options.themeRoot}`);
       installProcessHandlers();
       const activate = () => {
@@ -402,6 +419,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       server.httpServer?.once('close', cleanup);
     },
     closeServer() {
+      devServer = undefined;
       cleanup();
     },
     handleHotUpdate(context) {
