@@ -2,6 +2,13 @@
 
 All notable changes to this package are documented here.
 
+## Unreleased
+
+### Added
+
+- When the folder given to Shopify CLI (`--path` after `--`, or `SHOPIFY_FLAG_PATH`) does not exist when it is about to start, `dev` prints a `warn` line explaining that Shopify CLI will stop. If an installed `@display-studio/vite-plugin-shopify-devtools` is older than 0.5.0 it names that as the likely cause, because those versions removed their `.shopify-devtools/theme` mirror at startup. A new troubleshooting entry and a compatibility note describe the update, including why a `^0.4.0` range does not reach 0.5.0.
+- A CI job (`npm run compat:devtools`) runs `dev` with this plugin and `@display-studio/vite-plugin-shopify-devtools` together on Linux, macOS, and Windows, and checks the mirror exists when Shopify CLI starts and is gone after SIGINT and SIGTERM.
+
 ## 0.7.1
 
 ### Changed
