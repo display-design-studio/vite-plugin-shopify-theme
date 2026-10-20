@@ -28,6 +28,8 @@ import {
   formatFooter,
   formatGitignoreHint,
   formatHeader,
+  formatMissingThemePathHint,
+  mirrorFixMissing,
   missingGeneratedPatterns,
   outputStyle,
 } from '../src/cli/output.js';
@@ -1477,6 +1479,94 @@ describe('terminal output', () => {
     const shopify = events.indexOf('spawn:shopify');
     expect(shopify).toBeGreaterThan(0);
     expect(events.slice(0, shopify).filter((event) => event.startsWith('write:'))).toHaveLength(1);
+  });
+
+  it('decides from the devtools version whether the mirror fix is missing', () => {
+    expect(mirrorFixMissing('0.4.0')).toBe(true);
+    expect(mirrorFixMissing('0.4.9')).toBe(true);
+    expect(mirrorFixMissing('0.5.0')).toBe(false);
+    expect(mirrorFixMissing('0.12.1')).toBe(false);
+    expect(mirrorFixMissing('1.0.0')).toBe(false);
+    expect(mirrorFixMissing(undefined)).toBe(false);
+  });
+
+  it('explains a missing theme folder, naming the old devtools version when it is the likely cause', () => {
+    const old = formatMissingThemePathHint({ path: '.shopify-devtools/theme', devtools: '0.4.0' }, plain);
+    expect(old).toContain('warn  The theme folder ".shopify-devtools/theme" does not exist, so Shopify CLI will stop.');
+    expect(old).toContain(
+      '@display-studio/vite-plugin-shopify-devtools 0.4.0 removes its mirror at startup; install 0.5.0 or later',
+    );
+    const other = formatMissingThemePathHint({ path: 'generated/theme' }, plain);
+    expect(other).toContain('Check that whatever generates it');
+    expect(other).not.toContain('0.5.0');
+    expect(strip(formatMissingThemePathHint({ path: 'x', devtools: '0.4.0' }, colored))).toBe(
+      formatMissingThemePathHint({ path: 'x', devtools: '0.4.0' }, plain),
+    );
+  });
+
+  describe('missing theme folder before Shopify CLI starts', () => {
+    const start = async (
+      argumentsList: string[],
+      setup: (root: string) => void = () => undefined,
+      env: NodeJS.ProcessEnv = {},
+    ) => {
+      const events: string[] = [];
+      const spawn = ((command: string) => {
+        events.push(`spawn:${command === process.execPath ? 'vite' : command}`);
+        return Object.assign(new EventEmitter(), { killed: false, kill: vi.fn() });
+      }) as never;
+      const root = mkdtempSync(join(tmpdir(), 'shopify-theme-missing-path-'));
+      setup(root);
+      await runDevelopment(argumentsList, {
+        cwd: root,
+        platform: 'linux',
+        spawn,
+        ready: async () => true,
+        onSignal: vi.fn(),
+        write: (text) => events.push(`write:${text}`),
+        env,
+        isTTY: false,
+        version: '0.7.2',
+      }).started;
+      return events;
+    };
+    const devtools = (root: string, version: string) => {
+      mkdirSync(join(root, 'node_modules/@display-studio/vite-plugin-shopify-devtools'), { recursive: true });
+      writeFileSync(
+        join(root, 'node_modules/@display-studio/vite-plugin-shopify-devtools/package.json'),
+        JSON.stringify({ name: '@display-studio/vite-plugin-shopify-devtools', version }),
+      );
+    };
+
+    it('warns before starting Shopify CLI and names the old devtools version', async () => {
+      const events = await start([], (root) => devtools(root, '0.4.0'), {
+        SHOPIFY_FLAG_PATH: '.shopify-devtools/theme',
+      });
+      const warning = events.findIndex((event) =>
+        event.includes('The theme folder ".shopify-devtools/theme" does not exist'),
+      );
+      expect(warning).toBeGreaterThan(0);
+      expect(events[warning]).toContain('vite-plugin-shopify-devtools 0.4.0 removes its mirror at startup');
+      expect(events[warning + 1]).toBe('spawn:shopify');
+    });
+
+    it('stays silent when the folder exists, when no folder was given, and with --raw', async () => {
+      const present = await start([], (root) => mkdirSync(join(root, 'generated/theme'), { recursive: true }), {
+        SHOPIFY_FLAG_PATH: 'generated/theme',
+      });
+      expect(present.some((event) => event.includes('does not exist'))).toBe(false);
+      const none = await start([]);
+      expect(none.some((event) => event.includes('does not exist'))).toBe(false);
+      const raw = await start(['--raw', '--', '--path', 'missing/theme']);
+      expect(raw.filter((event) => event.startsWith('write:'))).toEqual([]);
+    });
+
+    it('uses the generic cause for a missing folder when the devtools plugin is current or absent', async () => {
+      const current = await start(['--', '--path', 'missing/theme'], (root) => devtools(root, '0.5.0'));
+      expect(current.find((event) => event.includes('does not exist'))).toContain('Check that whatever generates it');
+      const absent = await start(['--', '--path', 'missing/theme']);
+      expect(absent.find((event) => event.includes('does not exist'))).toContain('Check that whatever generates it');
+    });
   });
 
   it('hints about missing .gitignore patterns in editor mode only', async () => {

@@ -3,7 +3,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
-import { formatFooter, formatGitignoreHint, formatHeader, missingGeneratedPatterns, outputStyle } from './output.js';
+import {
+  formatFooter,
+  formatGitignoreHint,
+  formatHeader,
+  formatMissingThemePathHint,
+  missingGeneratedPatterns,
+  outputStyle,
+} from './output.js';
 
 export interface DevRuntime {
   cwd?: string;
@@ -102,6 +109,18 @@ export function describeTarget(
   return { ...(store ? { store } : {}), ...(environment ? { environment } : {}) };
 }
 
+/** Reads an installed package's version from the nearest node_modules above `cwd`, without importing it. */
+function installedVersion(cwd: string, name: string): string | undefined {
+  for (let directory = cwd; ; directory = dirname(directory)) {
+    try {
+      return JSON.parse(readFileSync(join(directory, 'node_modules', name, 'package.json'), 'utf8')).version;
+    } catch {
+      /* not here: keep looking upward */
+    }
+    if (dirname(directory) === directory) return undefined;
+  }
+}
+
 function shopifyCliVersion(cwd: string): string | undefined {
   try {
     const local = createRequire(join(cwd, 'package.json')).resolve('@shopify/cli/package.json');
@@ -164,6 +183,7 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
   // Everything the header shows is already known here, so printing it adds no waiting before the first spawn.
   const shopifyVersion = shopifyCliVersion(cwd);
   const decorate = !raw && Boolean(runtime.version);
+  const themePath = flagValue(themeArguments, ['--path']) ?? env.SHOPIFY_FLAG_PATH;
   if (decorate) {
     // One small read: in a watch session Tailwind rebuilds in a loop when generated files are not ignored.
     const gitignore = join(cwd, '.gitignore');
@@ -183,7 +203,7 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
           shopify: shopifyVersion,
           ...describeTarget(cwd, themeArguments, env),
           liveReload: flagValue(themeArguments, ['--live-reload']),
-          themePath: flagValue(themeArguments, ['--path']) ?? env.SHOPIFY_FLAG_PATH,
+          themePath,
         },
         style,
       ) + hint,
@@ -255,6 +275,15 @@ export function runDevelopment(arguments_: string[], runtime: DevRuntime = {}) {
     if (!ready)
       console.warn(
         `vite-shopify-theme: Vite did not write the ${editor ? 'first build' : 'development snippet'} within ${(editor ? editorReadyTimeout : readyTimeout) / 1000}s; starting Shopify CLI anyway.`,
+      );
+    // One existsSync on the fast path. If an explicit theme folder is still missing, Shopify CLI is about to fail
+    // with a generic error, so say why (the devtools mirror before 0.5.0 was removed at startup).
+    if (decorate && themePath && !existsSync(resolve(cwd, themePath)))
+      write(
+        formatMissingThemePathHint(
+          { path: themePath, devtools: installedVersion(cwd, '@display-studio/vite-plugin-shopify-devtools') },
+          style,
+        ),
       );
     // Shopify CLI resolves its working directory from npm's INIT_CWD before the real one, so a script started
     // from another directory (a workspace root, `npm --prefix`) would make it look for the theme and
