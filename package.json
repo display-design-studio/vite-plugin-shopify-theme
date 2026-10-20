@@ -58,6 +58,7 @@
     "compat:frameworks": "node scripts/check-frameworks.mjs all",
     "compat:consumer": "node scripts/check-consumer.mjs",
     "compat:editor": "node scripts/check-editor.mjs",
+    "compat:devtools": "node scripts/check-devtools.mjs",
     "compat:vue": "node scripts/check-frameworks.mjs vue",
     "compat:react": "node scripts/check-frameworks.mjs react",
     "compat": "node scripts/check-compatibility.mjs all",
