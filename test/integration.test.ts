@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { build, createLogger, createServer } from 'vite';
+import { build, createLogger } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initialize } from '../src/cli/init.js';
 import { shopifyTheme } from '../src/index.js';
@@ -75,12 +75,11 @@ async function buildPostcssTheme(root: string, buildOptions: Record<string, unkn
 
 function devServer(
   root: string,
-  devOrigin?: string,
   configuredEntries: Record<string, string> = entries,
   diagnostics = false,
   extraServer: Record<string, unknown> = {},
 ) {
-  const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, devOrigin, diagnostics }) as any;
+  const plugin = shopifyTheme({ entries: configuredEntries, themeRoot: root, diagnostics }) as any;
   const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
   const info = vi.fn();
   const warn = vi.fn();
@@ -418,7 +417,7 @@ describe('signal shutdown', () => {
     const signals = captureSignals();
     try {
       const events: string[] = [];
-      devServer(root, undefined, entries, false, {
+      devServer(root, entries, false, {
         close: async () => {
           events.push('close started');
           await new Promise((resolve) => setTimeout(resolve, 30));
@@ -447,7 +446,7 @@ describe('signal shutdown', () => {
     const root = fixture();
     const signals = captureSignals();
     try {
-      devServer(root, undefined, entries, false, { close: () => new Promise(() => undefined) });
+      devServer(root, entries, false, { close: () => new Promise(() => undefined) });
       signals.handlers.get('SIGINT')?.();
       expect(signals.kill).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1999);
@@ -485,7 +484,7 @@ describe('signal shutdown', () => {
 describe('development ownership and recovery', () => {
   it('emits ordered opt-in lifecycle diagnostics without duplicate cleanup', () => {
     const root = fixture();
-    const server = devServer(root, undefined, entries, true);
+    const server = devServer(root, entries, true);
     expect(server.info.mock.calls.flat()).toEqual([
       expect.stringMatching(/^\[shopify-theme:diagnostic:CONFIG_RESOLVED\] command=serve /),
       expect.stringMatching(/^\[shopify-theme:diagnostic:OWNERSHIP_ACQUIRED\] mode=development /),
@@ -522,31 +521,14 @@ describe('development ownership and recovery', () => {
     first.plugin.closeServer();
     expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
     expect(existsSync(lockPath(root))).toBe(false);
-
-    const restarted = devServer(root, 'https://vite.example.test');
-    expect(restarted.warn).not.toHaveBeenCalled();
-    restarted.httpServer.emit('listening');
-    expect(restarted.info).toHaveBeenCalledExactlyOnceWith(
-      '[shopify-theme] Development assets ready at https://vite.example.test (2 entries; snippet: snippets/vite-tag.liquid).',
-    );
-    expect(restarted.warn).toHaveBeenCalledExactlyOnceWith(
-      '[shopify-theme:DEV_EXTERNAL_ORIGIN] External development origin https://vite.example.test must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.',
-    );
-    expect(restarted.contribution.server.ws).toMatchObject({
-      protocol: 'wss',
-      host: 'vite.example.test',
-      clientPort: 443,
-    });
-    restarted.httpServer.emit('close');
-    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
   });
 
   it('uses singular entry grammar and a normalized relative snippet path', () => {
     const root = fixture();
-    const server = devServer(root, 'https://vite.example.test', { 'theme.ts': 'frontend/theme.ts' });
+    const server = devServer(root, { 'theme.ts': 'frontend/theme.ts' });
     server.httpServer.emit('listening');
     expect(server.info).toHaveBeenCalledExactlyOnceWith(
-      '[shopify-theme] Development assets ready at https://vite.example.test (1 entry; snippet: snippets/vite-tag.liquid).',
+      '[shopify-theme] Development assets ready at http://127.0.0.1:5173 (1 entry; snippet: snippets/vite-tag.liquid).',
     );
     server.plugin.closeServer();
   });
@@ -617,7 +599,6 @@ describe('development ownership and recovery', () => {
       entries,
       themeRoot: root,
       snippet: 'blocked/vite-tag.liquid',
-      devOrigin: 'https://vite.example.test',
     }) as any;
     expect(() => plugin.config({ root }, { command: 'serve', mode: 'development' })).toThrow(
       /^\[shopify-theme:THEME_STRUCTURE_INVALID\].*configured snippet directory.*not a directory/i,
@@ -645,37 +626,9 @@ function writeStaleLock(root: string, temporary: string, original: string, token
   );
 }
 
-describe('external origin CORS', () => {
-  it('answers Shopify page origins, not only the tunnel origin', async () => {
-    const root = fixture();
-    const server = await createServer({
-      configFile: false,
-      root,
-      logLevel: 'silent',
-      server: { port: 0 },
-      plugins: [shopifyTheme({ entries, themeRoot: root, devOrigin: 'https://vite.example.test' })],
-    });
-    try {
-      await server.listen();
-      const address = server.httpServer!.address() as { port: number };
-      const allowOrigin = async (origin: string) =>
-        (
-          await fetch(`http://localhost:${address.port}/frontend/theme.css`, {
-            headers: { Origin: origin, Host: 'vite.example.test' },
-          })
-        ).headers.get('access-control-allow-origin');
-      expect(await allowOrigin('https://shop.myshopify.com')).toBe('https://shop.myshopify.com');
-      expect(await allowOrigin('https://admin.shopify.com')).toBe('https://admin.shopify.com');
-      expect(await allowOrigin('https://evil.example')).toBeNull();
-    } finally {
-      await server.close();
-    }
-  });
-});
-
 describe('development server without a listening phase', () => {
-  const middlewareServer = (root: string, devOrigin?: string) => {
-    const plugin = shopifyTheme({ entries, themeRoot: root, devOrigin }) as any;
+  const middlewareServer = (root: string) => {
+    const plugin = shopifyTheme({ entries, themeRoot: root }) as any;
     const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
     plugin.configResolved({ command: 'serve', logger: { info: vi.fn(), warn: vi.fn(), warnOnce: vi.fn() } });
     return {
@@ -688,37 +641,6 @@ describe('development server without a listening phase', () => {
     const root = fixture();
     const { plugin, server } = middlewareServer(root);
     expect(() => plugin.configureServer(server)).toThrow(/\[shopify-theme:DEV_ORIGIN_UNAVAILABLE\].*middleware mode/);
-    expect(existsSync(lockPath(root))).toBe(false);
-  });
-
-  it('warns once that devOrigin is deprecated, only when it is set and Vite serves', () => {
-    const root = fixture();
-    const configured = devServer(root, 'https://vite.example.test');
-    expect(configured.warnOnce).toHaveBeenCalledExactlyOnceWith(
-      expect.stringMatching(
-        /^\[shopify-theme:DEV_ORIGIN_DEPRECATED\] devOrigin and the HTTPS tunnel setup are deprecated and will be removed in 1\.0\.0\. Use `vite-shopify-theme dev --editor`/,
-      ),
-    );
-    configured.plugin.closeServer?.();
-    const plain = devServer(fixture());
-    expect(plain.warnOnce).not.toHaveBeenCalled();
-    plain.plugin.closeServer?.();
-    const buildRoot = fixture();
-    const building = shopifyTheme({ entries, themeRoot: buildRoot, devOrigin: 'https://vite.example.test' }) as any;
-    building.config({ root: buildRoot }, { command: 'build', mode: 'production' });
-    const warnOnce = vi.fn();
-    building.configResolved({ command: 'build', logger: { info: vi.fn(), warn: vi.fn(), warnOnce } });
-    expect(warnOnce).not.toHaveBeenCalled();
-  });
-
-  it('activates immediately with an explicit devOrigin and restores on closeServer', () => {
-    const root = fixture();
-    const original = readFileSync(snippetPath(root), 'utf8');
-    const { plugin, server } = middlewareServer(root, 'https://vite.example.test');
-    plugin.configureServer(server);
-    expect(readFileSync(snippetPath(root), 'utf8')).toContain('https://vite.example.test/@vite/client');
-    plugin.closeServer();
-    expect(readFileSync(snippetPath(root), 'utf8')).toBe(original);
     expect(existsSync(lockPath(root))).toBe(false);
   });
 });

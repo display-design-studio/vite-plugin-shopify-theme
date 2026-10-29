@@ -16,7 +16,6 @@ import { shopifyTheme } from '../src/index.js';
 import {
   collectManifestTags,
   developmentSnippet,
-  productionSnippet,
   renderProductionSnippet,
   SNIPPET_SIZE_LIMIT,
   snippetSizeWarning,
@@ -822,15 +821,6 @@ describe('option validation', () => {
     ).toBe(join(root, 'liquid/generated/vite.liquid'));
   });
 
-  it('normalizes valid entries and an HTTPS origin', () => {
-    const root = fixture();
-    const value = normalizeOptions(
-      { entries: { 'theme.ts': 'frontend/theme.ts' }, devOrigin: 'https://theme.example.test' },
-      root,
-    );
-    expect(value.devOrigin?.origin).toBe('https://theme.example.test');
-  });
-
   it.each(['theme', 'theme.ts', 'theme.min.js', 'theme_2', 'theme-dark.css', '9-theme'])(
     'accepts Liquid-safe entry name %s',
     (name) => {
@@ -858,26 +848,6 @@ describe('option validation', () => {
     expect(() => normalizeOptions({ entries: { [name]: 'frontend/theme.ts' } }, root)).toThrow(
       /Liquid entry name.*invalid.*ASCII letters/,
     );
-  });
-
-  it.each(['http://example.com', 'https://user@example.com', 'https://example.com/path', 'not a url'])(
-    'rejects malformed or unsafe origin %s',
-    (devOrigin) => {
-      const root = fixture();
-      expect(() => normalizeOptions({ entries: { app: 'frontend/theme.ts' }, devOrigin }, root)).toThrow(/HTTPS|valid/);
-    },
-  );
-
-  it('preserves the original URL parsing failure as the diagnostic cause', () => {
-    const root = fixture();
-    let failure: unknown;
-    try {
-      normalizeOptions({ entries: { app: 'frontend/theme.ts' }, devOrigin: 'not a url' }, root);
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).cause).toBeInstanceOf(TypeError);
   });
 
   it('rejects missing, duplicate, and out-of-root entries', () => {
@@ -967,13 +937,14 @@ describe('manifest rendering', () => {
 
   it('renders only declared entry branches with Shopify asset URLs', () => {
     const root = fixture();
-    const snippet = productionSnippet(
+    const snippet = renderProductionSnippet(
       manifest,
       {
         'theme.ts': join(root, 'frontend/theme.ts'),
         'theme.css': join(root, 'frontend/theme.css'),
       },
       root,
+      { modulePreload: true },
     );
     expect(snippet).toContain("{% when 'theme.ts' %}");
     expect(snippet).toContain("{{ 'shared-b.js' | asset_url }}");
@@ -1062,39 +1033,13 @@ describe('Vite 8 configuration', () => {
     });
   });
 
-  it('owns publicDir and top-level input and uses server.ws for tunnels', () => {
+  it('owns publicDir and top-level input without changing the development server', () => {
     const root = fixture();
-    const plugin = shopifyTheme({
-      entries: { app: 'frontend/theme.ts' },
-      themeRoot: root,
-      devOrigin: 'https://vite.example.test',
-    }) as any;
+    const plugin = shopifyTheme({ entries: { app: 'frontend/theme.ts' }, themeRoot: root }) as any;
     const contribution = plugin.config({ root }, { command: 'serve', mode: 'development' });
     expect(contribution).toMatchObject({ publicDir: false, input: { app: join(root, 'frontend/theme.ts') } });
     expect(contribution.build.rolldownOptions.input).toEqual({ app: join(root, 'frontend/theme.ts') });
-    expect(contribution.server).toMatchObject({
-      allowedHosts: ['vite.example.test'],
-      ws: { protocol: 'wss', host: 'vite.example.test', clientPort: 443 },
-    });
-    expect(contribution.server.hmr).toBeUndefined();
-    const origins = contribution.server.cors.origin as Array<string | RegExp>;
-    const allowed = (origin: string) =>
-      origins.some((rule) => (typeof rule === 'string' ? rule === origin : rule.test(origin)));
-    for (const origin of [
-      'https://vite.example.test',
-      'https://shop.myshopify.com',
-      'https://admin.shopify.com',
-      'http://127.0.0.1:9292',
-      'http://localhost:9292',
-    ])
-      expect(allowed(origin), origin).toBe(true);
-    for (const origin of [
-      'https://evil.example',
-      'https://myshopify.com.evil.example',
-      'http://shop.myshopify.com',
-      'https://notshopify.com',
-    ])
-      expect(allowed(origin), origin).toBe(false);
+    expect(contribution.server).toBeUndefined();
   });
 
   it('replaces direct stylesheet inputs with one virtual input only when CSS splitting is disabled', () => {
@@ -1633,12 +1578,7 @@ describe('public API documentation', () => {
     expect(documented).toEqual(codes);
   });
 
-  it('documents every root export as public or deprecated', async () => {
-    const exported = Object.keys(await import('../src/index.js')).sort();
-    const deprecated = [...rows('Deprecated exports').matchAll(/^\| `(\w+)` \|/gm)].map((match) => match[1]);
-    const runtimeDeprecated = ['collectManifestTags', 'developmentSnippet', 'normalizeOptions', 'productionSnippet'];
-    expect(exported).toEqual(['default', 'shopifyTheme', ...runtimeDeprecated].sort());
-    for (const name of runtimeDeprecated) expect(deprecated, name).toContain(name);
-    for (const name of ['NormalizedOptions', 'ManifestTags']) expect(deprecated, name).toContain(name);
+  it('exposes only the stable root runtime exports', async () => {
+    expect(Object.keys(await import('../src/index.js')).sort()).toEqual(['default', 'shopifyTheme']);
   });
 });

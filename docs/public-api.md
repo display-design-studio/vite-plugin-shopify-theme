@@ -18,21 +18,6 @@ The package exports only its root. The default export and `shopifyTheme` are ide
 
 A diagnostic code keeps its meaning within a major version. The text after the code is for people and can change in any release, so match on the code, not on the message.
 
-## Deprecated exports
-
-These names are exported from the root by accident. They are internal, they are marked `@deprecated` in the types as of 0.7.0, and they are removed in 1.0.0. If you rely on one, open an issue describing the use before 1.0.0.
-
-| Name | Kind |
-| --- | --- |
-| `normalizeOptions` | function |
-| `NormalizedOptions` | type |
-| `collectManifestTags` | function |
-| `ManifestTags` | type |
-| `developmentSnippet` | function |
-| `productionSnippet` | function, also out of date: it cannot render `attributes`, `inline`, or the CSS bundle |
-
-`devOrigin` is deprecated too and is removed in 1.0.0; see [Live Theme Editor](./cookbook/theme-editor-and-tunnels).
-
 ## Diagnostic codes
 
 Errors stop the build or the development server. Warnings let it continue.
@@ -43,14 +28,11 @@ Errors stop the build or the development server. Warnings let it continue.
 | `BUILD_CSS_MISSING` | error | The aggregated stylesheet that `build.cssCodeSplit: false` needs was not generated. |
 | `BUILD_ROLLBACK_FAILED` | error | A build failed and the previous snippet could not be restored. |
 | `CONFIG_CSS_ENTRY_RESERVED` | error | A non-stylesheet entry uses the name reserved for the aggregated stylesheet. |
-| `CONFIG_DEV_ORIGIN` | error | `devOrigin` is not an absolute HTTPS origin. |
 | `CONFIG_DIAGNOSTICS` | error | `diagnostics` is not a boolean. |
 | `CONFIG_ENTRIES` | error | An entry is not a non-empty source path or a valid entry object. |
 | `CONFIG_SNIPPET` | error | `snippet` is not a path string relative to `themeRoot`. |
 | `CONFIG_THEME_ROOT` | error | `themeRoot` is not a path string. |
 | `CONFIG_VITE_CONFLICT` | error | A Vite option the plugin owns, such as `publicDir`, is set in the user config. |
-| `DEV_EXTERNAL_ORIGIN` | warning | `devOrigin` is in use: the HTTPS tunnel must stay up and stable. |
-| `DEV_ORIGIN_DEPRECATED` | warning | `devOrigin` is deprecated; use `dev --editor`. |
 | `DEV_ORIGIN_UNAVAILABLE` | error | The development origin cannot be determined, for example in middleware mode. |
 | `DEV_OWNERSHIP_LOST` | error | Theme ownership was lost before the development server started. |
 | `FS_JSON_INVALID` | error | A JSON file the plugin reads is not valid JSON. |

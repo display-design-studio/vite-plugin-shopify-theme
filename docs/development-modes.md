@@ -10,7 +10,7 @@ Choose a mode by where you work:
 
 | Mode | Local preview | Theme Editor | Per-change latency |
 | --- | --- | --- | --- |
-| `dev` (default) | Instant, with HMR | Only through a tunnel and the deprecated `devOrigin` | None |
+| `dev` (default) | Instant, with HMR | No; use editor mode | None |
 | `dev --editor` | About 1-2 seconds, full-page reload | Yes, no tunnel | About 1-2 seconds, plus upload |
 | `vite build`, then `shopify theme dev` | Snapshot | Snapshot | Rebuild by hand |
 
@@ -29,7 +29,7 @@ How it behaves:
 `dev` and `dev --editor` print a short header before anything starts and a line when the session ends. Shopify CLI's own output is not parsed or changed.
 
 ```text
-vite-shopify-theme 0.7.0 · HMR
+vite-shopify-theme 1.0.0 · HMR
   versions  Vite 8.3.4 · Shopify CLI 4.9.3 · Node 26.12.0
   store     your-store.myshopify.com (environment: development)
 ```
@@ -60,7 +60,7 @@ When this file defines `[environments.development]`, `dev` runs `shopify theme d
 
 The command preserves `SHOPIFY_FLAG_PATH`, forwards termination signals (on `SIGINT` and `SIGTERM` the plugin releases the lock, restores the snippet, and closes the Vite server for up to two seconds before it re-raises the signal, so other plugins can remove their temporary files), stops the sibling process when either exits, and propagates failures. On Windows, a shell is used only for the Shopify shim.
 
-`devOrigin` (an HTTPS origin for a tunnel managed elsewhere, giving HMR inside the Theme Editor) is deprecated and will be removed in 1.0.0; the plugin warns with `DEV_ORIGIN_DEPRECATED` when it is set. Use `dev --editor` for a live Theme Editor without a tunnel. During development the snippet contains HMR and reload clients; the previous snippet is restored at shutdown. A live or uncertain lock fails safely.
+Use `dev --editor` for live Theme Editor updates. During default development the snippet contains HMR and reload clients for the local preview; the previous snippet is restored at shutdown. A live or uncertain lock fails safely.
 
 Shopify CLI flags can be supplied through its documented environment variables. In particular, an existing `SHOPIFY_FLAG_PATH` is passed through unchanged, which is useful when the command runs from a workspace root. Shopify CLI reads npm's `INIT_CWD` before the real working directory, so the command sets `INIT_CWD` to the directory it runs in; a script started from a workspace root or with `npm --prefix` then still finds the theme and its `shopify.theme.toml`. Positional arguments after `dev` belong to Vite; they are not forwarded to Shopify CLI.
 

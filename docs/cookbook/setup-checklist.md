@@ -49,5 +49,5 @@ If `layout/theme.liquid` has more than one `</head>` or `</body>`, `init` leaves
 | `LOCK_ACTIVE` | Another Vite process owns this theme. Stop it, or follow [Troubleshooting](../troubleshooting#a-lock-remains-after-a-crash). |
 | `THEME_STRUCTURE_INVALID` | `themeRoot` is wrong, or `assets/` or the snippet folder is missing. |
 | `CONFIG_ENTRIES` | A source path in `entries` does not exist, or an entry name has invalid characters. |
-| Styles missing only in the Theme Editor | See [Live Theme Editor with a tunnel](./theme-editor-and-tunnels). |
+| Styles missing only in the Theme Editor | See [Live Theme Editor](./theme-editor-and-tunnels). |
 | `SNIPPET_SIZE_NEAR_LIMIT` warning | The generated snippet approaches Shopify's 256 kB file limit. See [Troubleshooting](../troubleshooting#the-generated-snippet-is-close-to-shopify-s-size-limit). |

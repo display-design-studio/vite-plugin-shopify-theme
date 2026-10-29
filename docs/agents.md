@@ -22,7 +22,7 @@ This page is for coding agents and for people writing instructions for them. Eve
 
 **Start development**: `npm run dev` runs Vite first and Shopify CLI after the development snippet exists. Prefer it over starting `shopify theme dev` separately, so the first sync includes the snippet. Store settings live in `shopify.theme.toml` (`[environments.development]`); `dev` selects that environment automatically, and options after `--` go to Shopify CLI.
 
-**Theme Editor**: `npm run dev:editor` builds in watch mode and syncs hashed assets to the development theme, so changes appear live in the editor without a tunnel. Prefer it over a tunnel unless HMR inside the editor is needed.
+**Theme Editor**: `npm run dev:editor` builds in watch mode and syncs hashed assets to the development theme, so changes appear live in the editor without a tunnel. The default `dev` mode keeps HMR in the local preview.
 
 **Production assets**: `npm run build`, then upload the theme with Shopify CLI.
 

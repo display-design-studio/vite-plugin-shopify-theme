@@ -34,10 +34,6 @@ Stop `dev`, run the production build, then restart `dev`. If the development ses
 
 See [Ownership and recovery](./advanced-workflows#ownership-and-recovery) for the ownership boundary.
 
-## Development URLs point at the wrong host
-
-`devOrigin` is deprecated and will be removed in 1.0.0; prefer `npm run dev:editor`. If you still use it for an externally managed HTTPS tunnel, it must be an origin such as `https://vite.example.test`, not a URL with a path. For direct local development, omit it and let the plugin use Vite's resolved local origin.
-
 ## Shopify preview loads but CSS or JavaScript does not
 
 Check that the Liquid render name exactly matches a key in `entries`, inspect the browser request URL, and verify the source file is inside `themeRoot`. Run with `diagnostics: true` and include the resulting diagnostic codes in an issue.
@@ -48,7 +44,7 @@ Do not delete ownership state before investigating. Confirm that the filename is
 
 ## Styles or scripts are missing only in the Theme Editor
 
-The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. Run `npm run dev:editor`, which syncs hashed assets to Shopify and needs no tunnel (see [Development modes](./development-modes#editor-mode)), or use an HTTPS tunnel with `devOrigin`; see [Live Theme Editor](./cookbook/theme-editor-and-tunnels). Pages served from a custom storefront domain are not in the development CORS allow list.
+The editor runs on an HTTPS Shopify origin and cannot load `http://localhost`. Run `npm run dev:editor`, which syncs hashed assets to Shopify and needs no tunnel; see [Development modes](./development-modes#editor-mode).
 
 ## `dev:editor` or `vite build --watch` rebuilds again and again
 
@@ -76,4 +72,4 @@ This comes from the remote theme, not the plugin. Shopify CLI keeps one developm
 
 ## Before opening an issue
 
-Include the Node, Vite, plugin, Shopify CLI, operating-system, and package-manager versions; the relevant `entries`, `themeRoot`, `snippet`, and `devOrigin` values; the full coded diagnostic; whether the failure occurs in build or development; and a minimal file tree. Remove store credentials and theme tokens.
+Include the Node, Vite, plugin, Shopify CLI, operating-system, and package-manager versions; the relevant `entries`, `themeRoot`, and `snippet` values; the full coded diagnostic; whether the failure occurs in build or development; and a minimal file tree. Remove store credentials and theme tokens.

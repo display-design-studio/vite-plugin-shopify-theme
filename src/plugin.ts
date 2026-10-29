@@ -8,7 +8,6 @@ import {
   CSS_BUNDLE_ID,
   diagnostic,
   errorDetail,
-  formatDiagnostic,
   inside,
   isStyleEntry,
   normalizeOptions,
@@ -311,14 +310,6 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
     },
     configResolved(resolved) {
       config = resolved;
-      if (options.devOrigin && resolved.command === 'serve') {
-        resolved.logger.warnOnce(
-          formatDiagnostic(
-            'DEV_ORIGIN_DEPRECATED',
-            'devOrigin and the HTTPS tunnel setup are deprecated and will be removed in 1.0.0. Use `vite-shopify-theme dev --editor` (npm run dev:editor) for a live Theme Editor without a tunnel: https://display-design-studio.github.io/vite-plugin-shopify-theme/cookbook/theme-editor-and-tunnels',
-          ),
-        );
-      }
       logDiagnostic(
         'CONFIG_RESOLVED',
         `command=${resolved.command} root=${options.themeRoot} entries=${Object.keys(options.entries).length} snippet=${sourceKey(options.snippet, options.themeRoot)}`,
@@ -361,10 +352,10 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       if (watching()) cleanup();
     },
     configureServer(server: ViteDevServer) {
-      if (!server.httpServer && !options.devOrigin) {
+      if (!server.httpServer) {
         throw diagnostic(
           'DEV_ORIGIN_UNAVAILABLE',
-          'The Vite server has no HTTP server (middleware mode), so the development origin cannot be determined. Configure `devOrigin` or run Vite with its own HTTP server.',
+          'The Vite server has no HTTP server (middleware mode), so the development origin cannot be determined. Run Vite with its own HTTP server.',
         );
       }
       owner = acquireLock(options.themeRoot, 'development');
@@ -373,7 +364,7 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
       installProcessHandlers();
       const activate = () => {
         try {
-          const origin = options.devOrigin?.origin ?? localOrigin(server);
+          const origin = localOrigin(server);
           const snippet = canonicalPathInside(options.themeRoot, options.snippet, 'Development snippet');
           const original = existsSync(snippet)
             ? { exists: true, content: readText(snippet, 'existing Liquid snippet') }
@@ -397,14 +388,6 @@ export function shopifyTheme(raw: ShopifyThemeOptions): Plugin {
           config.logger.info(
             `[shopify-theme] Development assets ready at ${origin} (${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}; snippet: ${sourceKey(options.snippet, options.themeRoot)}).`,
           );
-          if (options.devOrigin) {
-            config.logger.warn(
-              formatDiagnostic(
-                'DEV_EXTERNAL_ORIGIN',
-                `External development origin ${origin} must use HTTPS and remain stable. You are responsible for keeping an HTTP and WebSocket tunnel running; the plugin configures Vite but does not create or manage the tunnel.`,
-              ),
-            );
-          }
         } catch (error) {
           try {
             cleanup();
@@ -447,7 +430,7 @@ function localOrigin(server: ViteDevServer): string {
   if (!address || typeof address === 'string')
     throw diagnostic(
       'DEV_ORIGIN_UNAVAILABLE',
-      'Could not determine the Vite development origin because the HTTP server has no TCP address. Wait for the server to listen or configure `devOrigin`.',
+      'Could not determine the Vite development origin because the HTTP server has no TCP address. Wait for the server to listen.',
     );
   const configuredHost = server.config.server.host;
   const host =

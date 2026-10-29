@@ -32,32 +32,11 @@ export const expectedFiles = [
   'package.json',
 ];
 
-export const expectedRuntimeExports = [
-  'collectManifestTags',
-  'default',
-  'developmentSnippet',
-  'normalizeOptions',
-  'productionSnippet',
-  'shopifyTheme',
-];
+export const expectedRuntimeExports = ['default', 'shopifyTheme'];
 
 const expectedTypeEntrypoint = [
-  "import { normalizeOptions as normalize, NormalizedOptions as Normalized } from './config.js';",
-  "import { collectManifestTags as collect, developmentSnippet as development, productionSnippet as production, ManifestTags as Tags } from './snippets.js';",
   "export { default, shopifyTheme } from './plugin.js';",
   "export type { EntryOptions, ShopifyThemeOptions } from './config.js';",
-  '/** @deprecated Internal; removed in 1.0.0. */',
-  'export declare const normalizeOptions: typeof normalize;',
-  '/** @deprecated Internal; removed in 1.0.0. */',
-  'export type NormalizedOptions = Normalized;',
-  '/** @deprecated Internal; removed in 1.0.0. */',
-  'export declare const collectManifestTags: typeof collect;',
-  '/** @deprecated Internal; removed in 1.0.0. */',
-  'export type ManifestTags = Tags;',
-  '/** @deprecated Internal; removed in 1.0.0. */',
-  'export declare const developmentSnippet: typeof development;',
-  '/** @deprecated Internal and out of date (it cannot render `attributes`, `inline`, or the CSS bundle); removed in 1.0.0. */',
-  'export declare const productionSnippet: typeof production;',
   '',
 ].join('\n');
 
@@ -83,7 +62,7 @@ export function validateFiles(files) {
 
 export function validateMetadata(manifest) {
   strictEqual(manifest.name, '@display-studio/vite-plugin-shopify-theme', 'package name differs');
-  strictEqual(manifest.version, '0.7.2', 'package version differs');
+  strictEqual(manifest.version, '1.0.0', 'package version differs');
   strictEqual(manifest.type, 'module', 'package must remain ESM');
   strictEqual(manifest.license, 'MIT', 'package license must remain MIT');
   strictEqual(manifest.main, './dist/index.js', 'main entrypoint differs');

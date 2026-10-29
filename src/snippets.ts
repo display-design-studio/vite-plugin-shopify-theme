@@ -143,10 +143,6 @@ function renderAttributes(attributes: EntryAttributes | undefined): string {
 
 const asset = (file: string) => `{{ '${file.replaceAll("'", "\\'")}' | asset_url }}`;
 
-export function productionSnippet(manifest: Manifest, entries: Record<string, string>, root: string): string {
-  return renderProductionSnippet(manifest, entries, root, { modulePreload: true });
-}
-
 interface ProductionRendering {
   modulePreload: boolean;
   aggregateCss?: string;

@@ -6,10 +6,6 @@ export const CSS_BUNDLE_ENTRY = 'style.css';
 export const CSS_BUNDLE_ID = 'virtual:shopify-theme-css-bundle';
 export const RESOLVED_CSS_BUNDLE_ID = `\0${CSS_BUNDLE_ID}`;
 const STYLE_ENTRY_RE = /\.(?:css|pcss|postcss|scss|sass|less|styl|stylus)$/i;
-// Browsers send the page's origin (storefront, Theme Editor, admin), not the tunnel's, so a fixed
-// `Access-Control-Allow-Origin` of the tunnel would block every Shopify page.
-const LOCAL_ORIGIN = /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
-const SHOPIFY_ORIGIN = /^https:\/\/(?:[a-z0-9-]+\.)*(?:myshopify|shopify)\.com$/i;
 const ATTRIBUTE_NAME_RE = /^[a-z][a-z0-9-]*$/;
 const RESERVED_ATTRIBUTES = new Set(['src', 'href', 'rel', 'type', 'integrity', 'crossorigin']);
 const ENTRY_OPTION_KEYS = new Set(['source', 'attributes', 'inline']);
@@ -34,8 +30,6 @@ export interface ShopifyThemeOptions {
   entries: Record<string, string | EntryOptions>;
   themeRoot?: string;
   snippet?: string;
-  /** @deprecated Use `vite-shopify-theme dev --editor` for a live Theme Editor without a tunnel. Removed in 1.0.0. */
-  devOrigin?: string;
   diagnostics?: boolean;
 }
 
@@ -44,7 +38,6 @@ export interface NormalizedOptions {
   entryOptions: Record<string, NormalizedEntryOptions>;
   themeRoot: string;
   snippet: string;
-  devOrigin?: URL;
   diagnostics: boolean;
 }
 
@@ -55,14 +48,11 @@ export type DiagnosticCode =
   | 'BUILD_CSS_MISSING'
   | 'BUILD_ROLLBACK_FAILED'
   | 'CONFIG_CSS_ENTRY_RESERVED'
-  | 'CONFIG_DEV_ORIGIN'
   | 'CONFIG_DIAGNOSTICS'
   | 'CONFIG_ENTRIES'
   | 'CONFIG_SNIPPET'
   | 'CONFIG_THEME_ROOT'
   | 'CONFIG_VITE_CONFLICT'
-  | 'DEV_EXTERNAL_ORIGIN'
-  | 'DEV_ORIGIN_DEPRECATED'
   | 'DEV_ORIGIN_UNAVAILABLE'
   | 'DEV_OWNERSHIP_LOST'
   | 'FS_JSON_INVALID'
@@ -355,37 +345,7 @@ export function normalizeOptions(options: ShopifyThemeOptions, cwd = process.cwd
     entries[name] = absolute;
     entryOptions[name] = normalizedEntry;
   }
-  let devOrigin: URL | undefined;
-  if (options.devOrigin) {
-    if (typeof options.devOrigin !== 'string')
-      throw diagnostic(
-        'CONFIG_DEV_ORIGIN',
-        `devOrigin ${displayValue(options.devOrigin)} must be an absolute HTTPS origin string.`,
-      );
-    try {
-      devOrigin = new URL(options.devOrigin);
-    } catch (error) {
-      throw diagnostic(
-        'CONFIG_DEV_ORIGIN',
-        `devOrigin ${JSON.stringify(options.devOrigin)} is not a valid absolute HTTPS origin. Use a value such as "https://vite.example.com".`,
-        error,
-      );
-    }
-    if (
-      devOrigin.protocol !== 'https:' ||
-      devOrigin.username ||
-      devOrigin.password ||
-      devOrigin.pathname !== '/' ||
-      devOrigin.search ||
-      devOrigin.hash
-    ) {
-      throw diagnostic(
-        'CONFIG_DEV_ORIGIN',
-        `devOrigin "${options.devOrigin}" must use HTTPS and contain only an origin, without credentials, path, query, or hash.`,
-      );
-    }
-  }
-  return { entries, entryOptions, themeRoot, snippet, devOrigin, diagnostics: options.diagnostics ?? false };
+  return { entries, entryOptions, themeRoot, snippet, diagnostics: options.diagnostics ?? false };
 }
 
 function configurationConflict(key: string, actual: unknown, expected: string): Error {
@@ -420,17 +380,6 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
       user.build.rolldownOptions.input,
       'the top-level plugin-owned `input`',
     );
-  const server = options.devOrigin
-    ? {
-        cors: { origin: [LOCAL_ORIGIN, SHOPIFY_ORIGIN, options.devOrigin.origin] },
-        allowedHosts: [options.devOrigin.hostname],
-        ws: {
-          protocol: 'wss' as const,
-          host: options.devOrigin.hostname,
-          clientPort: Number(options.devOrigin.port || 443),
-        },
-      }
-    : undefined;
   if (aggregateCss && CSS_BUNDLE_ENTRY in options.entries && !isStyleEntry(options.entries[CSS_BUNDLE_ENTRY])) {
     throw diagnostic(
       'CONFIG_CSS_ENTRY_RESERVED',
@@ -454,7 +403,6 @@ export function viteConfig(options: NormalizedOptions, user: UserConfig, aggrega
     base: './',
     publicDir: false,
     input: buildEntries,
-    server,
     build: {
       outDir: assets,
       emptyOutDir: false,

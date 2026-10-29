@@ -32,14 +32,7 @@ Choose one of these workflows:
 
 - **Editor mode (recommended).** Run `npm run dev:editor`. It runs `vite build --watch` and `shopify theme dev` together, so changes, including new Tailwind classes used in Liquid, reach the local preview and the Theme Editor in about a second or two with no tunnel. See [Development modes](./development-modes#editor-mode).
 - **Build snapshot.** Run `vite build`, then `shopify theme dev` (for example a `"shopify:host": "vite build && shopify theme dev --host 0.0.0.0"` script). The built, hashed assets are uploaded to the development theme. The build is a snapshot: rebuild and restart after changing source.
-- **Live editor with a tunnel (deprecated).** `devOrigin` and this recipe are removed in 1.0.0; prefer editor mode. Route an HTTPS tunnel to Vite and set `devOrigin` (see [External tunnels](#external-tunnels)). The editor then loads live assets with HMR and no upload. This needs a tunnel that you manage yourself.
 
 Running `vite build --watch` by hand is not supported; use `dev --editor`, which coordinates the watch build, the ownership lock, and Shopify CLI.
 
 Theme App Extensions have their own Shopify build and deployment lifecycle. Use this plugin only when the extension layout exposes an appropriate theme-like asset/snippet boundary; do not redirect an extension build into a production theme's ownership state.
-
-## External tunnels
-
-`devOrigin` and the tunnel setup are deprecated and will be removed in 1.0.0; the plugin warns with `DEV_ORIGIN_DEPRECATED`. Use [editor mode](./development-modes#editor-mode) instead.
-
-Create the tunnel with the provider of your choice, route it to Vite, and set `devOrigin` to its public HTTPS origin. The plugin configures browser-facing HMR URLs and allowed hosts; it does not create, authenticate, or stop the tunnel. Development CORS responses allow `localhost`, the tunnel origin, and HTTPS `*.myshopify.com` and `*.shopify.com` pages; see the [live editor recipe](./cookbook/theme-editor-and-tunnels).

@@ -10,6 +10,5 @@ export default defineConfig({
     },
     themeRoot: '.',
     snippet: 'snippets/vite-tag.liquid',
-    devOrigin: process.env.SHOPIFY_VITE_ORIGIN,
   })],
 });

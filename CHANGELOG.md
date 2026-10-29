@@ -4,6 +4,13 @@ All notable changes to this package are documented here.
 
 ## Unreleased
 
+## 1.0.0
+
+### Breaking changes
+
+- Removed the deprecated `devOrigin` option and the external HTTPS tunnel integration. Use `vite-shopify-theme dev --editor` for live Theme Editor updates without a tunnel.
+- Removed the deprecated internal root exports `normalizeOptions`, `collectManifestTags`, `developmentSnippet`, `productionSnippet`, `NormalizedOptions`, and `ManifestTags`. The stable root API is the default export, `shopifyTheme`, `ShopifyThemeOptions`, and `EntryOptions` ([RFC 0004](docs/rfcs/0004-public-api.md), [#70](https://github.com/display-design-studio/vite-plugin-shopify-theme/issues/70)).
+
 ## 0.7.2
 
 ### Added
