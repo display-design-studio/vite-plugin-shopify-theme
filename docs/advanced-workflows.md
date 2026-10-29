@@ -12,6 +12,8 @@ The theme-root lock prevents concurrent writers. Stale recovery restores a previ
 
 Development acquires `.vite-shopify-theme.lock` for the theme root. A live lock, malformed ownership evidence, or a lock whose liveness cannot be established fails closed. After a stale development process, the prior Liquid snippet is restored only if the current file still has the exact generated hash recorded by that process. A manually edited snippet is left untouched.
 
+The same lock intentionally prevents a production build in a second terminal while `dev` owns the theme root. Stop `dev`, build, then restart it. A concurrent build is safe only from a separate checkout with a separate theme root and separate generated output; deleting or bypassing the live lock is not supported. See [Troubleshooting](./troubleshooting#a-production-build-fails-with-lock_active-while-dev-is-running).
+
 ## Monorepos and multiple themes
 
 Keep one Vite config and one ownership boundary per theme. Set `themeRoot` explicitly when the config is outside the theme and run each development process from the package that owns that config. Do not point two concurrent plugin instances at the same theme root: the lock intentionally rejects that topology.

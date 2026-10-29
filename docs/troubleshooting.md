@@ -26,6 +26,14 @@ Add the exact renders printed by `init`. It patches only a single unambiguous `<
 
 Confirm no Vite process owns the theme before retrying. Recovery never overwrites a changed snippet.
 
+## A production build fails with `LOCK_ACTIVE` while `dev` is running
+
+This is intentional. Development temporarily owns the generated snippet, while a production build writes the snippet, hashed assets, manifest, and ownership state. Letting both processes write to the same theme root could mix outputs or make one process remove files still needed by the other.
+
+Stop `dev`, run the production build, then restart `dev`. If the development session must stay open, build from a separate checkout with a separate theme root and separate generated assets, snippet, state, and lock. Do not delete or bypass the lock while either process may still be running.
+
+See [Ownership and recovery](./advanced-workflows#ownership-and-recovery) for the ownership boundary.
+
 ## Development URLs point at the wrong host
 
 `devOrigin` is deprecated and will be removed in 1.0.0; prefer `npm run dev:editor`. If you still use it for an externally managed HTTPS tunnel, it must be an origin such as `https://vite.example.test`, not a URL with a path. For direct local development, omit it and let the plugin use Vite's resolved local origin.
